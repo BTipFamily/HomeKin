@@ -32,16 +32,16 @@ export async function upsertSignup(formData: FormData) {
     .single()
 
   if (subEvent?.capacity) {
-    const { count } = await supabase
+    const { data: existingSignups } = await supabase
       .from('signups')
-      .select('*', { count: 'exact', head: true })
+      .select('headcount')
       .eq('sub_event_id', subEventId)
       .neq('member_id', member.id)
 
-    const currentCount = count || 0
-    if (currentCount + headcount > subEvent.capacity) {
+    const currentHeadcount = existingSignups?.reduce((sum, s) => sum + s.headcount, 0) ?? 0
+    if (currentHeadcount + headcount > subEvent.capacity) {
       throw new Error(
-        `Not enough capacity. Only ${subEvent.capacity - currentCount} spots remaining.`
+        `Not enough capacity. Only ${subEvent.capacity - currentHeadcount} spots remaining.`
       )
     }
   }

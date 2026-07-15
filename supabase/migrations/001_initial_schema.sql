@@ -403,13 +403,59 @@ create policy "Invitations: committee/admin can create" on invitations
   with check (get_my_role() in ('committee', 'admin'));
 
 -- ============================================================
--- STORAGE BUCKETS (run separately in Supabase dashboard or CLI)
+-- STORAGE BUCKETS + RLS
 -- ============================================================
--- Create a bucket named "photos" with public access disabled
--- and "profile-photos" bucket for member avatars.
--- Example via supabase CLI:
+-- Create buckets first (Supabase dashboard or CLI):
 --   supabase storage create photos --public false
 --   supabase storage create profile-photos --public true
+--
+-- Then run these policies (storage.objects RLS):
+
+-- photos bucket — private reunion photos
+create policy "Storage photos: members can view"
+  on storage.objects for select to authenticated
+  using (bucket_id = 'photos');
+
+create policy "Storage photos: members can upload"
+  on storage.objects for insert to authenticated
+  with check (bucket_id = 'photos');
+
+create policy "Storage photos: uploader or committee/admin can delete"
+  on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'photos'
+    and (
+      owner = auth.uid()
+      or exists (
+        select 1 from public.members
+        where auth_user_id = auth.uid()
+        and role in ('committee', 'admin')
+      )
+    )
+  );
+
+-- profile-photos bucket — public member avatars
+create policy "Storage profile-photos: public can view"
+  on storage.objects for select
+  using (bucket_id = 'profile-photos');
+
+create policy "Storage profile-photos: members can upload"
+  on storage.objects for insert to authenticated
+  with check (bucket_id = 'profile-photos');
+
+create policy "Storage profile-photos: uploader or committee/admin can delete"
+  on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'profile-photos'
+    and (
+      owner = auth.uid()
+      or exists (
+        select 1 from public.members
+        where auth_user_id = auth.uid()
+        and role in ('committee', 'admin')
+      )
+    )
+  );
 
 -- ============================================================
 -- SEED: Create the first admin account

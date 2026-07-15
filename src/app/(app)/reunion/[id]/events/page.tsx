@@ -48,15 +48,15 @@ export default async function EventsPage({ params }: EventsPageProps) {
 
   const signupMap = new Map(userSignups?.map((s) => [s.sub_event_id, s]) ?? [])
 
-  // Get signup counts per event
+  // Get headcount totals per event
   const { data: signupCounts } = await supabase
     .from('signups')
-    .select('sub_event_id')
+    .select('sub_event_id, headcount')
     .in('sub_event_id', events?.map((e) => e.id) ?? [])
 
   const countMap = new Map<string, number>()
   signupCounts?.forEach((s) => {
-    countMap.set(s.sub_event_id, (countMap.get(s.sub_event_id) ?? 0) + 1)
+    countMap.set(s.sub_event_id, (countMap.get(s.sub_event_id) ?? 0) + s.headcount)
   })
 
   const canManage = ['committee', 'admin'].includes(member.role)
