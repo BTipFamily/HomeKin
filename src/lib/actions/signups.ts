@@ -1,0 +1,116 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { createClient } from '@/lib/supabase/server'
+
+export async function upsertSignup(formData: FormData) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const { data: member } = await supabase
+    .from('members')
+    .select('id')
+    .eq('auth_user_id', user.id)
+    .single()
+  if (!member) throw new Error('Member not found')
+
+  const subEventId = formData.get('sub_event_id') as string
+  const headcountRaw = formData.get('headcount') as string
+  const guestNames = formData.get('guest_names') as string
+
+  const headcount = parseInt(headcountRaw)
+  if (headcount < 1) throw new Error('Headcount must be at least 1')
+
+  // Check capacity
+  const { data: subEvent } = await supabase
+    .from('sub_events')
+    .select('capacity, reunion_id')
+    .eq('id', subEventId)
+    .single()
+
+  if (subEvent?.capacity) {
+    const { count } = await supabase
+      .from('signups')
+      .select('*', { count: 'exact', head: true })
+      .eq('sub_event_id', subEventId)
+      .neq('member_id', member.id)
+
+    const currentCount = count || 0
+    if (currentCount + headcount > subEvent.capacity) {
+      throw new Error(
+        `Not enough capacity. Only ${subEvent.capacity - currentCount} spots remaining.`
+      )
+    }
+  }
+
+  const { error } = await supabase.from('signups').upsert(
+    {
+      sub_event_id: subEventId,
+      member_id: member.id,
+      headcount,
+      guest_names: guestNames || null,
+      status: 'pending',
+    },
+    { onConflict: 'sub_event_id,member_id' }
+  )
+
+  if (error) throw new Error(error.message)
+
+  const reunionId = subEvent?.reunion_id
+  revalidatePath(`/reunion/${reunionId}/events/${subEventId}`)
+  revalidatePath(`/reunion/${reunionId}/signups`)
+}
+
+export async function cancelSignup(signupId: string, reunionId: string, subEventId: string) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const { data: member } = await supabase
+    .from('members')
+    .select('id')
+    .eq('auth_user_id', user.id)
+    .single()
+  if (!member) throw new Error('Member not found')
+
+  const { error } = await supabase
+    .from('signups')
+    .delete()
+    .eq('id', signupId)
+    .eq('member_id', member.id)
+
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/reunion/${reunionId}/events/${subEventId}`)
+  revalidatePath(`/reunion/${reunionId}/signups`)
+}
+
+export async function confirmSignup(signupId: string, reunionId: string) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const { data: member } = await supabase
+    .from('members')
+    .select('role')
+    .eq('auth_user_id', user.id)
+    .single()
+  if (!member || !['committee', 'admin'].includes(member.role)) {
+    throw new Error('Committee access required')
+  }
+
+  const { error } = await supabase
+    .from('signups')
+    .update({ status: 'confirmed' })
+    .eq('id', signupId)
+
+  if (error) throw new Error(error.message)
+  revalidatePath(`/reunion/${reunionId}`)
+}
