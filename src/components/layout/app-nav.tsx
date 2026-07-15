@@ -45,12 +45,18 @@ export function AppNav({ member, reunions, currentReunionId }: AppNavProps) {
 
   const reunionLinks = currentReunion
     ? [
-        { href: `/reunion/${currentReunion.id}`, label: 'Announcements' },
+        { href: `/reunion/${currentReunion.id}`, label: 'Home' },
         { href: `/reunion/${currentReunion.id}/events`, label: 'Events' },
-        { href: `/reunion/${currentReunion.id}/signups`, label: 'My Signups' },
+        { href: `/reunion/${currentReunion.id}/signups`, label: 'Signups' },
+        { href: `/reunion/${currentReunion.id}/chat`, label: 'Chat' },
         { href: `/reunion/${currentReunion.id}/photos`, label: 'Photos' },
+        { href: `/reunion/${currentReunion.id}/surveys`, label: 'Surveys' },
         ...(member.role !== 'member'
-          ? [{ href: `/reunion/${currentReunion.id}/manage`, label: 'Manage' }]
+          ? [
+              { href: `/reunion/${currentReunion.id}/invitations`, label: 'Invitations' },
+              { href: `/reunion/${currentReunion.id}/budget`, label: 'Budget' },
+              { href: `/reunion/${currentReunion.id}/manage`, label: 'Manage' },
+            ]
           : []),
       ]
     : []

@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Pin, Plus, Trash2, Calendar, Camera, Users } from 'lucide-react'
+import { Pin, Plus, Trash2, Calendar, Camera, Users, MessageCircle, ClipboardList, DollarSign } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { createAnnouncement, deleteAnnouncement } from '@/lib/actions/announcements'
 
@@ -53,6 +53,11 @@ export default async function ReunionPage({ params }: ReunionPageProps) {
     .select('*', { count: 'exact', head: true })
     .eq('reunion_id', id)
 
+  const { count: surveyCount } = await supabase
+    .from('surveys')
+    .select('*', { count: 'exact', head: true })
+    .eq('reunion_id', id)
+
   const canManage = ['committee', 'admin'].includes(member.role)
 
   async function handleCreateAnnouncement(formData: FormData) {
@@ -86,7 +91,13 @@ export default async function ReunionPage({ params }: ReunionPageProps) {
         <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
           <Link href={`/reunion/${id}/signups`}>
             <Users className="h-5 w-5" />
-            <span className="text-xs">My Signups</span>
+            <span className="text-xs">Signups & Pay</span>
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
+          <Link href={`/reunion/${id}/chat`}>
+            <MessageCircle className="h-5 w-5" />
+            <span className="text-xs">Chat</span>
           </Link>
         </Button>
         <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
@@ -95,6 +106,20 @@ export default async function ReunionPage({ params }: ReunionPageProps) {
             <span className="text-xs">Photos ({photoCount ?? 0})</span>
           </Link>
         </Button>
+        <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
+          <Link href={`/reunion/${id}/surveys`}>
+            <ClipboardList className="h-5 w-5" />
+            <span className="text-xs">Surveys ({surveyCount ?? 0})</span>
+          </Link>
+        </Button>
+        {canManage && (
+          <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
+            <Link href={`/reunion/${id}/budget`}>
+              <DollarSign className="h-5 w-5" />
+              <span className="text-xs">Budget</span>
+            </Link>
+          </Button>
+        )}
       </div>
 
       {/* Post announcement form (committee/admin) */}

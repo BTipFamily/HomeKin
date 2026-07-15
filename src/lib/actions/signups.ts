@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 export async function upsertSignup(formData: FormData) {
   const supabase = await createClient()
@@ -27,7 +27,7 @@ export async function upsertSignup(formData: FormData) {
   // Check capacity
   const { data: subEvent } = await supabase
     .from('sub_events')
-    .select('capacity, reunion_id')
+    .select('capacity, reunion_id, cost_per_person')
     .eq('id', subEventId)
     .single()
 
@@ -60,6 +60,36 @@ export async function upsertSignup(formData: FormData) {
   if (error) throw new Error(error.message)
 
   const reunionId = subEvent?.reunion_id
+
+  // Auto-sync balance row for paid events (server-side only, bypasses RLS)
+  if (subEvent && subEvent.cost_per_person > 0 && reunionId) {
+    const serviceClient = createServiceClient()
+    // Check for existing unpaid/pending balance to avoid overwriting a paid one
+    const { data: existing } = await serviceClient
+      .from('balances')
+      .select('id, status')
+      .eq('member_id', member.id)
+      .eq('sub_event_id', subEventId)
+      .maybeSingle()
+
+    if (!existing) {
+      await serviceClient.from('balances').insert({
+        member_id: member.id,
+        reunion_id: reunionId,
+        sub_event_id: subEventId,
+        amount_owed: headcount * subEvent.cost_per_person,
+        amount_paid: 0,
+        status: 'unpaid',
+      })
+    } else if (existing.status === 'unpaid') {
+      // Update amount if headcount changed and not yet paid
+      await serviceClient
+        .from('balances')
+        .update({ amount_owed: headcount * subEvent.cost_per_person })
+        .eq('id', existing.id)
+    }
+  }
+
   revalidatePath(`/reunion/${reunionId}/events/${subEventId}`)
   revalidatePath(`/reunion/${reunionId}/signups`)
 }

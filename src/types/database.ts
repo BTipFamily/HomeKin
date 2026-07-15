@@ -163,3 +163,30 @@ export type AnnouncementWithAuthor = Announcement & {
 export type PhotoWithUploader = Photo & {
   uploader?: Pick<Member, 'id' | 'name' | 'photo_url'>
 }
+
+export type SurveyQuestion = {
+  question: string
+  type: 'free_text' | 'multiple_choice'
+  options?: string[]
+}
+
+export type Survey = {
+  id: string
+  reunion_id: string
+  title: string
+  questions: SurveyQuestion[]
+  created_by: string | null
+  created_at: string
+}
+
+export type SurveyResponse = {
+  id: string
+  survey_id: string
+  member_id: string
+  answers: Record<string, string>
+  submitted_at: string
+}
+
+export type MessageWithSender = Message & {
+  sender?: Pick<Member, 'id' | 'name' | 'photo_url'>
+}
