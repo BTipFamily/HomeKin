@@ -14,6 +14,7 @@ function LoginForm() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const next = searchParams.get('next') || '/dashboard'
+  const profileError = searchParams.get('error') === 'no_profile'
 
   const [mode, setMode] = useState<'password' | 'magic'>('password')
   const [email, setEmail] = useState('')
@@ -21,6 +22,16 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [status, setStatus] = useState<'idle' | 'loading' | 'sent' | 'error'>('idle')
   const [error, setError] = useState('')
+  const [signingOut, setSigningOut] = useState(false)
+
+  async function handleSignOut() {
+    setSigningOut(true)
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    setSigningOut(false)
+    router.replace('/login')
+    router.refresh()
+  }
 
   async function handlePasswordSignIn(e: React.FormEvent) {
     e.preventDefault()
@@ -90,10 +101,29 @@ function LoginForm() {
         <CardDescription>
           {mode === 'password'
             ? 'Enter your email and password.'
-            : 'Enter your email and we'll send you a magic link.'}
+            : "Enter your email and we'll send you a magic link."}
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {profileError && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription>
+              Your account is signed in but has no member profile linked to it. Sign out and
+              sign in with an account that has access, or contact your reunion admin.
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2 w-full"
+                onClick={handleSignOut}
+                disabled={signingOut}
+              >
+                {signingOut ? 'Signing out...' : 'Sign out'}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <form
           onSubmit={mode === 'password' ? handlePasswordSignIn : handleMagicLink}
           className="space-y-4"
