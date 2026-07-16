@@ -11,8 +11,10 @@ function loadEnvLocal() {
   try {
     const content = readFileSync('.env.local', 'utf8')
     for (const line of content.split('\n')) {
-      const match = line.match(/^([A-Z_]+)=(.*)$/)
-      if (match && !process.env[match[1]]) process.env[match[1]] = match[2]
+      const match = line.match(/^([A-Z_]+)=(.*)\r?$/)
+      // Always prefer .env.local for this one-off script, in case a stale
+      // value was previously exported into this shell session.
+      if (match) process.env[match[1]] = match[2]
     }
   } catch {
     // ignore, rely on real env vars
