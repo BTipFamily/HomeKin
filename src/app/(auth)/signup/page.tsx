@@ -74,7 +74,7 @@ function SignupForm() {
     const supabase = createClient()
     const normalizedCode = code.trim().toUpperCase()
 
-    const { error: authError } = await supabase.auth.signUp({
+    const { data, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -91,6 +91,23 @@ function SignupForm() {
     if (authError) {
       setError(authError.message)
       setSubmitting(false)
+      return
+    }
+
+    // If Supabase returned an immediate session (email confirmation disabled),
+    // the callback never fires — provision the member record now.
+    if (data.session) {
+      const res = await fetch('/api/auth/provision-member', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone, family_branch: familyBranch, invite_code: normalizedCode }),
+      })
+      if (!res.ok) {
+        setError('Account created but profile setup failed. Please contact your admin.')
+        setSubmitting(false)
+        return
+      }
+      window.location.href = '/dashboard'
       return
     }
 
