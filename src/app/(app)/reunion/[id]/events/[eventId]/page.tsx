@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { ArrowLeft, Calendar, Clock, MapPin, Users, DollarSign, Edit, Trash2 } from 'lucide-react'
-import { formatDate, formatTime, formatCurrency, getInitials } from '@/lib/utils'
+import { formatDate, formatTime, formatCurrency, formatDuration, getInitials } from '@/lib/utils'
 import { upsertSignup, cancelSignup } from '@/lib/actions/signups'
 
 interface EventDetailPageProps {
@@ -105,7 +105,18 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
             {event.time && (
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <span>{formatTime(event.time)}</span>
+                <span>
+                  {formatTime(event.time)}
+                  {event.duration_minutes
+                    ? ` · ${formatDuration(event.duration_minutes)}`
+                    : ''}
+                </span>
+              </div>
+            )}
+            {!event.time && event.duration_minutes && (
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <span>{formatDuration(event.duration_minutes)}</span>
               </div>
             )}
             {event.location_name && (

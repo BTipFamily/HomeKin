@@ -56,6 +56,7 @@ export type SubEvent = {
   address: string | null
   cost_per_person: number
   capacity: number | null
+  duration_minutes: number | null
   created_by: string | null
   created_at: string
 }

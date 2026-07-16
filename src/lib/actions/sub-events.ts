@@ -28,9 +28,11 @@ export async function createSubEvent(reunionId: string, formData: FormData) {
   const address = formData.get('address') as string
   const costRaw = formData.get('cost_per_person') as string
   const capacityRaw = formData.get('capacity') as string
+  const durationRaw = formData.get('duration_minutes') as string
 
   const cost = parseFloat(costRaw) || 0
   const capacity = capacityRaw ? parseInt(capacityRaw) : null
+  const durationMinutes = durationRaw ? parseInt(durationRaw) : null
 
   if (cost < 0) throw new Error('Cost cannot be negative')
   if (capacity !== null && capacity < 1) throw new Error('Capacity must be at least 1')
@@ -47,6 +49,7 @@ export async function createSubEvent(reunionId: string, formData: FormData) {
       address: address || null,
       cost_per_person: cost,
       capacity,
+      duration_minutes: durationMinutes,
       created_by: member.id,
     })
     .select('id')
@@ -73,9 +76,11 @@ export async function updateSubEvent(eventId: string, reunionId: string, formDat
   const address = formData.get('address') as string
   const costRaw = formData.get('cost_per_person') as string
   const capacityRaw = formData.get('capacity') as string
+  const durationRaw = formData.get('duration_minutes') as string
 
   const cost = parseFloat(costRaw) || 0
   const capacity = capacityRaw ? parseInt(capacityRaw) : null
+  const durationMinutes = durationRaw ? parseInt(durationRaw) : null
 
   const { error } = await supabase
     .from('sub_events')
@@ -88,6 +93,7 @@ export async function updateSubEvent(eventId: string, reunionId: string, formDat
       address: address || null,
       cost_per_person: cost,
       capacity,
+      duration_minutes: durationMinutes,
     })
     .eq('id', eventId)
 

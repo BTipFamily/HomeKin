@@ -30,6 +30,15 @@ export function formatCurrency(cents: number): string {
   }).format(cents)
 }
 
+export function formatDuration(minutes: number | null): string {
+  if (!minutes) return ''
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  if (h === 0) return `${m} min`
+  if (m === 0) return `${h} hr`
+  return `${h} hr ${m} min`
+}
+
 export function getInitials(name: string): string {
   return name
     .split(' ')
