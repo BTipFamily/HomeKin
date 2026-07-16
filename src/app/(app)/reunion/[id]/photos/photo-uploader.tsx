@@ -50,7 +50,10 @@ export function PhotoUploader({ reunionId, memberId }: PhotoUploaderProps) {
       const path = `${reunionId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
       const { error: uploadError } = await supabase.storage
         .from('photos')
-        .upload(path, file)
+        .upload(path, file, {
+          contentType: file.type || 'application/octet-stream',
+          upsert: false,
+        })
 
       if (uploadError) {
         setError(uploadError.message)
