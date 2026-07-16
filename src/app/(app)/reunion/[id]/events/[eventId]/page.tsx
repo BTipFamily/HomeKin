@@ -219,15 +219,13 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
                     className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   />
                 </div>
-                <div className="flex gap-3">
-                  <Button type="submit" size="sm">Update Signup</Button>
-                  <form action={handleCancel}>
-                    <Button type="submit" size="sm" variant="destructive">
-                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                      Cancel Signup
-                    </Button>
-                  </form>
-                </div>
+                <Button type="submit" size="sm">Update Signup</Button>
+              </form>
+              <form action={handleCancel}>
+                <Button type="submit" size="sm" variant="destructive">
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  Cancel Signup
+                </Button>
               </form>
             </div>
           ) : isFull ? (
