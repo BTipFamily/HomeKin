@@ -1,23 +1,45 @@
 'use client'
 
 import { useState, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Mail, CheckCircle2 } from 'lucide-react'
+import { Mail, CheckCircle2, Eye, EyeOff } from 'lucide-react'
 
 function LoginForm() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const next = searchParams.get('next') || '/dashboard'
+
+  const [mode, setMode] = useState<'password' | 'magic'>('password')
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [status, setStatus] = useState<'idle' | 'loading' | 'sent' | 'error'>('idle')
   const [error, setError] = useState('')
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handlePasswordSignIn(e: React.FormEvent) {
+    e.preventDefault()
+    setStatus('loading')
+    setError('')
+
+    const supabase = createClient()
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+
+    if (error) {
+      setError(error.message)
+      setStatus('error')
+    } else {
+      router.push(next)
+      router.refresh()
+    }
+  }
+
+  async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault()
     setStatus('loading')
     setError('')
@@ -65,15 +87,23 @@ function LoginForm() {
     <Card>
       <CardHeader>
         <CardTitle>Sign in to HomeKin</CardTitle>
-        <CardDescription>Enter your email and we'll send you a magic link.</CardDescription>
+        <CardDescription>
+          {mode === 'password'
+            ? 'Enter your email and password.'
+            : 'Enter your email and we'll send you a magic link.'}
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form
+          onSubmit={mode === 'password' ? handlePasswordSignIn : handleMagicLink}
+          className="space-y-4"
+        >
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+
           <div className="space-y-2">
             <Label htmlFor="email">Email address</Label>
             <Input
@@ -86,12 +116,59 @@ function LoginForm() {
               autoFocus
             />
           </div>
+
+          {mode === 'password' && (
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+          )}
+
           <Button type="submit" className="w-full" disabled={status === 'loading'}>
-            <Mail className="mr-2 h-4 w-4" />
-            {status === 'loading' ? 'Sending...' : 'Send magic link'}
+            {mode === 'password' ? (
+              status === 'loading' ? 'Signing in...' : 'Sign in'
+            ) : (
+              <>
+                <Mail className="mr-2 h-4 w-4" />
+                {status === 'loading' ? 'Sending...' : 'Send magic link'}
+              </>
+            )}
           </Button>
         </form>
-        <p className="mt-4 text-center text-sm text-muted-foreground">
+
+        <div className="mt-4 text-center text-sm text-muted-foreground">
+          <button
+            type="button"
+            onClick={() => {
+              setMode(mode === 'password' ? 'magic' : 'password')
+              setError('')
+              setStatus('idle')
+            }}
+            className="text-primary hover:underline"
+          >
+            {mode === 'password' ? 'Forgot password? Use magic link instead' : 'Sign in with password'}
+          </button>
+        </div>
+
+        <p className="mt-2 text-center text-sm text-muted-foreground">
           New member?{' '}
           <a href="/signup" className="font-medium text-primary hover:underline">
             Join with an invite code
