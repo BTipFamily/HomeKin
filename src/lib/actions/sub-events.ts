@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 export async function deleteSubEvent(eventId: string, reunionId: string) {
   const supabase = await createClient()
@@ -20,7 +20,8 @@ export async function deleteSubEvent(eventId: string, reunionId: string) {
     throw new Error('Committee or admin access required')
   }
 
-  const { error } = await supabase.from('sub_events').delete().eq('id', eventId)
+  const serviceClient = createServiceClient()
+  const { error } = await serviceClient.from('sub_events').delete().eq('id', eventId)
   if (error) throw new Error(error.message)
 
   revalidatePath(`/reunion/${reunionId}/events`)
