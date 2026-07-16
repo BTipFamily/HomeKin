@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator'
 import { ArrowLeft, Calendar, Clock, MapPin, Users, DollarSign, Edit, Trash2 } from 'lucide-react'
 import { formatDate, formatTime, formatCurrency, formatDuration, getInitials } from '@/lib/utils'
 import { upsertSignup, cancelSignup } from '@/lib/actions/signups'
+import { deleteSubEvent } from '@/lib/actions/sub-events'
 
 interface EventDetailPageProps {
   params: Promise<{ id: string; eventId: string }>
@@ -83,12 +84,30 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
           <div className="flex items-start justify-between gap-2">
             <CardTitle className="text-xl">{event.name}</CardTitle>
             {canManage && (
-              <Button asChild variant="outline" size="sm">
-                <Link href={`/reunion/${id}/events/${eventId}/edit`}>
-                  <Edit className="mr-1.5 h-3.5 w-3.5" />
-                  Edit
-                </Link>
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/reunion/${id}/events/${eventId}/edit`}>
+                    <Edit className="mr-1.5 h-3.5 w-3.5" />
+                    Edit
+                  </Link>
+                </Button>
+                <form
+                  action={async () => {
+                    'use server'
+                    await deleteSubEvent(eventId, id)
+                  }}
+                >
+                  <Button
+                    type="submit"
+                    variant="destructive"
+                    size="sm"
+                    className="gap-1.5"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </Button>
+                </form>
+              </div>
             )}
           </div>
         </CardHeader>

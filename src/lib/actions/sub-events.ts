@@ -4,6 +4,29 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
+export async function deleteSubEvent(eventId: string, reunionId: string) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const { data: member } = await supabase
+    .from('members')
+    .select('role')
+    .eq('auth_user_id', user.id)
+    .single()
+  if (!member || !['committee', 'admin'].includes(member.role)) {
+    throw new Error('Committee or admin access required')
+  }
+
+  const { error } = await supabase.from('sub_events').delete().eq('id', eventId)
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/reunion/${reunionId}/events`)
+  redirect(`/reunion/${reunionId}/events`)
+}
+
 export async function createSubEvent(reunionId: string, formData: FormData) {
   const supabase = await createClient()
   const {
