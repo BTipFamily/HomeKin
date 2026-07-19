@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { geocodeAddress } from '@/lib/geocoding'
 import type { Role } from '@/types/database'
 
 export async function updateMemberProfile(formData: FormData) {
@@ -22,12 +23,36 @@ export async function updateMemberProfile(formData: FormData) {
   const instagram = formData.get('instagram') as string
   const linkedin = formData.get('linkedin') as string
 
+  const normalizedAddress = address || null
+
+  const { data: existing } = await supabase
+    .from('members')
+    .select('geocoded_address')
+    .eq('id', memberId)
+    .single()
+
+  const geoFields: Record<string, unknown> = {}
+  if (normalizedAddress !== existing?.geocoded_address) {
+    if (normalizedAddress) {
+      const result = await geocodeAddress(normalizedAddress)
+      geoFields.latitude = result?.lat ?? null
+      geoFields.longitude = result?.lng ?? null
+      geoFields.geocoded_address = result ? normalizedAddress : null
+      geoFields.geocode_updated_at = new Date().toISOString()
+    } else {
+      geoFields.latitude = null
+      geoFields.longitude = null
+      geoFields.geocoded_address = null
+      geoFields.geocode_updated_at = null
+    }
+  }
+
   const { error } = await supabase
     .from('members')
     .update({
       name,
       phone: phone || null,
-      address: address || null,
+      address: normalizedAddress,
       family_branch: familyBranch || null,
       bio: bio || null,
       social_links: {
@@ -35,6 +60,7 @@ export async function updateMemberProfile(formData: FormData) {
         instagram: instagram || null,
         linkedin: linkedin || null,
       },
+      ...geoFields,
     })
     .eq('id', memberId)
 

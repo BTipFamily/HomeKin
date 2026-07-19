@@ -5,6 +5,16 @@ export type Role = 'member' | 'committee' | 'admin'
 export type SignupStatus = 'pending' | 'confirmed'
 export type BalanceStatus = 'unpaid' | 'partially_paid' | 'paid' | 'pending_confirmation'
 export type PaymentMethod = 'stripe' | 'zelle' | 'cashapp' | 'check' | 'other'
+export type Gender = 'male' | 'female'
+export type RelationshipType = 'parent_child' | 'partner' | 'custom'
+export type ParentChildKind = 'biological' | 'step' | 'adoptive' | 'foster'
+export type PartnerStatus =
+  | 'married'
+  | 'divorced'
+  | 'separated'
+  | 'partnered'
+  | 'widowed'
+  | 'engaged'
 
 export type SocialLinks = {
   facebook?: string | null
@@ -32,6 +42,11 @@ export type Member = {
   role: Role
   created_by_proxy: boolean
   visibility_settings: VisibilitySettings
+  gender: Gender | null
+  latitude: number | null
+  longitude: number | null
+  geocoded_address: string | null
+  geocode_updated_at: string | null
   created_at: string
   updated_at: string
 }
@@ -41,8 +56,27 @@ export type Reunion = {
   name: string
   year: number
   description: string | null
+  location_name: string | null
+  address: string | null
+  latitude: number | null
+  longitude: number | null
   created_by: string | null
   created_at: string
+}
+
+export type Relationship = {
+  id: string
+  member_id: string
+  related_member_id: string
+  relationship_type: RelationshipType
+  parent_child_kind: ParentChildKind | null
+  partner_status: PartnerStatus | null
+  partner_start_date: string | null
+  partner_end_date: string | null
+  custom_label: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
 }
 
 export type SubEvent = {

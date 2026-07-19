@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, Users, LogOut, Settings, ChevronDown, Menu, X } from 'lucide-react'
+import { Home, Users, GitBranch, LogOut, Settings, ChevronDown, Menu, X } from 'lucide-react'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn, getInitials } from '@/lib/utils'
@@ -41,6 +41,7 @@ export function AppNav({ member, reunions, currentReunionId }: AppNavProps) {
   const navLinks = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
     { href: '/directory', label: 'Directory', icon: Users },
+    { href: '/family-tree', label: 'Family Tree', icon: GitBranch },
   ]
 
   const reunionLinks = currentReunion
@@ -50,6 +51,7 @@ export function AppNav({ member, reunions, currentReunionId }: AppNavProps) {
         { href: `/reunion/${currentReunion.id}/signups`, label: 'Signups' },
         { href: `/reunion/${currentReunion.id}/chat`, label: 'Chat' },
         { href: `/reunion/${currentReunion.id}/photos`, label: 'Photos' },
+        { href: `/reunion/${currentReunion.id}/map`, label: 'Map' },
         { href: `/reunion/${currentReunion.id}/surveys`, label: 'Surveys' },
         ...(member.role !== 'member'
           ? [

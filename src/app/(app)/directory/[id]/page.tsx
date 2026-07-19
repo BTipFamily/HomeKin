@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { getInitials } from '@/lib/utils'
+import { canViewField } from '@/lib/visibility'
 import {
   ArrowLeft,
   Edit,
@@ -49,18 +50,9 @@ export default async function MemberProfilePage({ params }: ProfilePageProps) {
 
   // Determine visibility of contact fields
   const myRole = currentMember?.role ?? 'member'
-  const showPhone =
-    member.visibility_settings?.phone === 'members' ||
-    (member.visibility_settings?.phone === 'committee' &&
-      ['committee', 'admin'].includes(myRole))
-  const showEmail =
-    member.visibility_settings?.email === 'members' ||
-    (member.visibility_settings?.email === 'committee' &&
-      ['committee', 'admin'].includes(myRole))
-  const showAddress =
-    member.visibility_settings?.address === 'members' ||
-    (member.visibility_settings?.address === 'committee' &&
-      ['committee', 'admin'].includes(myRole))
+  const showPhone = canViewField(member.visibility_settings, 'phone', myRole)
+  const showEmail = canViewField(member.visibility_settings, 'email', myRole)
+  const showAddress = canViewField(member.visibility_settings, 'address', myRole)
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">

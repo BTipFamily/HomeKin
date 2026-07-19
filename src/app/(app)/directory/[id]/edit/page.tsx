@@ -1,15 +1,20 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, X } from 'lucide-react'
 import { updateMemberProfile } from '@/lib/actions/members'
+import { deleteRelationship } from '@/lib/actions/relationships'
+import { getInitials } from '@/lib/utils'
+import type { Relationship } from '@/types/database'
 import { ProfilePhotoUpload } from './photo-upload'
+import { RelationshipPicker } from './relationship-picker'
 
 interface EditProfilePageProps {
   params: Promise<{ id: string }>
@@ -44,11 +49,53 @@ export default async function EditProfilePage({ params }: EditProfilePageProps) 
     ['committee', 'admin'].includes(currentMember?.role ?? '')
   if (!canEdit) redirect(`/directory/${id}`)
 
+  const { data: relationshipRows } = await supabase
+    .from('relationships')
+    .select('*')
+    .or(`member_id.eq.${id},related_member_id.eq.${id}`)
+    .order('created_at')
+
+  const relationships = relationshipRows ?? []
+  const otherPartyIds = [
+    ...new Set(relationships.map((r) => (r.member_id === id ? r.related_member_id : r.member_id))),
+  ]
+
+  const { data: otherPartyRows } = otherPartyIds.length
+    ? await supabase.from('members').select('id, name, photo_url').in('id', otherPartyIds)
+    : { data: [] }
+
+  const otherPartyLookup = Object.fromEntries((otherPartyRows ?? []).map((m) => [m.id, m]))
+
+  function describeRelationship(rel: Relationship): string {
+    const other = otherPartyLookup[rel.member_id === id ? rel.related_member_id : rel.member_id]
+    const otherName = other?.name ?? 'Unknown'
+
+    if (rel.relationship_type === 'parent_child') {
+      const kindLabel = rel.parent_child_kind ? ` (${rel.parent_child_kind})` : ''
+      return rel.member_id === id
+        ? `Parent of ${otherName}${kindLabel}`
+        : `Child of ${otherName}${kindLabel}`
+    }
+    if (rel.relationship_type === 'partner') {
+      const statusLabel = rel.partner_status ?? 'partner'
+      return `${statusLabel.charAt(0).toUpperCase()}${statusLabel.slice(1)} to ${otherName}`
+    }
+    return `${rel.custom_label ?? 'Related'} — ${otherName}`
+  }
+
   async function handleSubmit(formData: FormData) {
     'use server'
     formData.set('member_id', id)
     await updateMemberProfile(formData)
     redirect(`/directory/${id}`)
+  }
+
+  async function handleDeleteRelationship(formData: FormData) {
+    'use server'
+    const relationshipId = formData.get('relationship_id') as string
+    const memberId = formData.get('member_id') as string
+    const relatedMemberId = formData.get('related_member_id') as string
+    await deleteRelationship(relationshipId, [memberId, relatedMemberId])
   }
 
   return (
@@ -175,6 +222,57 @@ export default async function EditProfilePage({ params }: EditProfilePageProps) 
               </Button>
             </div>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Family Relationships</CardTitle>
+          <CardDescription>
+            Link parents, children, spouses, and other relations. These show up on the{' '}
+            <Link href="/family-tree" className="text-primary hover:underline">
+              Family Tree
+            </Link>
+            . Members with no relationships added are left out of that view.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {relationships.length > 0 && (
+            <ul className="space-y-2">
+              {relationships.map((rel) => {
+                const other =
+                  otherPartyLookup[rel.member_id === id ? rel.related_member_id : rel.member_id]
+                return (
+                  <li
+                    key={rel.id}
+                    className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Avatar className="h-7 w-7 shrink-0">
+                        {other?.photo_url && (
+                          <AvatarImage src={other.photo_url} alt={other?.name ?? ''} />
+                        )}
+                        <AvatarFallback className="text-xs">
+                          {getInitials(other?.name ?? '?')}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="truncate text-sm">{describeRelationship(rel)}</span>
+                    </div>
+                    <form action={handleDeleteRelationship}>
+                      <input type="hidden" name="relationship_id" value={rel.id} />
+                      <input type="hidden" name="member_id" value={rel.member_id} />
+                      <input type="hidden" name="related_member_id" value={rel.related_member_id} />
+                      <Button type="submit" variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </form>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+
+          <RelationshipPicker memberId={id} />
         </CardContent>
       </Card>
     </div>

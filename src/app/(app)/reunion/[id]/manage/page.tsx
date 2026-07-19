@@ -144,6 +144,25 @@ export default async function ManagePage({ params }: ManagePageProps) {
                 rows={3}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="location_name">Location Name</Label>
+              <Input
+                id="location_name"
+                name="location_name"
+                placeholder="e.g. Grandma Rose's House"
+                defaultValue={reunion.location_name ?? ''}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="address">Address</Label>
+              <Textarea
+                id="address"
+                name="address"
+                placeholder="Used to place this reunion on the travel map"
+                defaultValue={reunion.address ?? ''}
+                rows={2}
+              />
+            </div>
             <Button type="submit" size="sm">Save Changes</Button>
           </form>
         </CardContent>
