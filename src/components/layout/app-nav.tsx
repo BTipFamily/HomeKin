@@ -36,7 +36,12 @@ export function AppNav({ member, reunions, currentReunionId }: AppNavProps) {
     router.refresh()
   }
 
-  const currentReunion = reunions.find((r) => r.id === currentReunionId)
+  // currentReunionId is never actually passed in by any layout, so fall
+  // back to parsing it out of the URL — this is what lets the reunion
+  // sub-nav (Events, Photos, Map, Manage, etc.) appear at all while on a
+  // /reunion/[id]/... page.
+  const pathReunionId = pathname.match(/^\/reunion\/([^/]+)/)?.[1]
+  const currentReunion = reunions.find((r) => r.id === (currentReunionId ?? pathReunionId))
 
   const navLinks = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },

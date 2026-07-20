@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { geocodeAddress } from '@/lib/geocoding'
 
 export async function deleteSubEvent(eventId: string, reunionId: string) {
   const supabase = await createClient()
@@ -61,6 +62,16 @@ export async function createSubEvent(reunionId: string, formData: FormData) {
   if (cost < 0) throw new Error('Cost cannot be negative')
   if (capacity !== null && capacity < 1) throw new Error('Capacity must be at least 1')
 
+  const normalizedAddress = address || null
+  const geoFields: Record<string, unknown> = {}
+  if (normalizedAddress) {
+    const result = await geocodeAddress(normalizedAddress)
+    geoFields.latitude = result?.lat ?? null
+    geoFields.longitude = result?.lng ?? null
+    geoFields.geocoded_address = result ? normalizedAddress : null
+    geoFields.geocode_updated_at = new Date().toISOString()
+  }
+
   const { data, error } = await supabase
     .from('sub_events')
     .insert({
@@ -70,11 +81,12 @@ export async function createSubEvent(reunionId: string, formData: FormData) {
       date,
       time: time || null,
       location_name: locationName || null,
-      address: address || null,
+      address: normalizedAddress,
       cost_per_person: cost,
       capacity,
       duration_minutes: durationMinutes,
       created_by: member.id,
+      ...geoFields,
     })
     .select('id')
     .single()
@@ -82,6 +94,7 @@ export async function createSubEvent(reunionId: string, formData: FormData) {
   if (error) throw new Error(error.message)
 
   revalidatePath(`/reunion/${reunionId}/events`)
+  revalidatePath(`/reunion/${reunionId}/map`)
   redirect(`/reunion/${reunionId}/events/${data.id}`)
 }
 
@@ -106,6 +119,30 @@ export async function updateSubEvent(eventId: string, reunionId: string, formDat
   const capacity = capacityRaw ? parseInt(capacityRaw) : null
   const durationMinutes = durationRaw ? parseInt(durationRaw) : null
 
+  const normalizedAddress = address || null
+
+  const { data: existing } = await supabase
+    .from('sub_events')
+    .select('geocoded_address')
+    .eq('id', eventId)
+    .single()
+
+  const geoFields: Record<string, unknown> = {}
+  if (normalizedAddress !== existing?.geocoded_address) {
+    if (normalizedAddress) {
+      const result = await geocodeAddress(normalizedAddress)
+      geoFields.latitude = result?.lat ?? null
+      geoFields.longitude = result?.lng ?? null
+      geoFields.geocoded_address = result ? normalizedAddress : null
+      geoFields.geocode_updated_at = new Date().toISOString()
+    } else {
+      geoFields.latitude = null
+      geoFields.longitude = null
+      geoFields.geocoded_address = null
+      geoFields.geocode_updated_at = null
+    }
+  }
+
   const { error } = await supabase
     .from('sub_events')
     .update({
@@ -114,10 +151,11 @@ export async function updateSubEvent(eventId: string, reunionId: string, formDat
       date,
       time: time || null,
       location_name: locationName || null,
-      address: address || null,
+      address: normalizedAddress,
       cost_per_person: cost,
       capacity,
       duration_minutes: durationMinutes,
+      ...geoFields,
     })
     .eq('id', eventId)
 
@@ -125,4 +163,5 @@ export async function updateSubEvent(eventId: string, reunionId: string, formDat
 
   revalidatePath(`/reunion/${reunionId}/events/${eventId}`)
   revalidatePath(`/reunion/${reunionId}/events`)
+  revalidatePath(`/reunion/${reunionId}/map`)
 }

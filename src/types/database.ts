@@ -91,6 +91,10 @@ export type SubEvent = {
   cost_per_person: number
   capacity: number | null
   duration_minutes: number | null
+  latitude: number | null
+  longitude: number | null
+  geocoded_address: string | null
+  geocode_updated_at: string | null
   created_by: string | null
   created_at: string
 }

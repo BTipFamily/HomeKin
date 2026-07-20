@@ -38,14 +38,24 @@ export default async function PhotosPage({ params }: PhotosPageProps) {
     .eq('reunion_id', id)
     .order('created_at', { ascending: false })
 
-  // Get public URLs
-  const photosWithUrls =
-    photos?.map((photo) => {
-      const { data } = supabase.storage
-        .from('photos')
-        .getPublicUrl(photo.storage_path)
-      return { ...photo, public_url: data.publicUrl }
-    }) ?? []
+  // The `photos` bucket is private, so getPublicUrl() doesn't work here —
+  // it returns a URL that 400s since there's no public access. Generate
+  // time-limited signed URLs instead (RLS only requires SELECT on
+  // storage.objects, which authenticated members already have).
+  const paths = (photos ?? []).map((p) => p.storage_path)
+  const { data: signedUrls } =
+    paths.length > 0
+      ? await supabase.storage.from('photos').createSignedUrls(paths, 60 * 60)
+      : { data: [] }
+
+  const urlByPath = Object.fromEntries(
+    (signedUrls ?? []).map((s) => [s.path, s.signedUrl]).filter(([path]) => path)
+  )
+
+  const photosWithUrls = (photos ?? []).map((photo) => ({
+    ...photo,
+    public_url: urlByPath[photo.storage_path] ?? '',
+  }))
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">

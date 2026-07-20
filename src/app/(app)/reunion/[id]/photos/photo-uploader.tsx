@@ -48,9 +48,18 @@ export function PhotoUploader({ reunionId, memberId }: PhotoUploaderProps) {
       }
 
       const path = `${reunionId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
+
+      // Upload an ArrayBuffer rather than the File directly: Safari has a
+      // long-standing WebKit bug where fetch() sends a FormData body
+      // containing a File/Blob with Content-Length: 0 on cross-origin
+      // requests (which this is, browser -> supabase.co), so the server
+      // sees an empty body ("No content provided"). An ArrayBuffer body
+      // skips the FormData-wrapping path in storage-js entirely.
+      const fileBuffer = await file.arrayBuffer()
+
       const { error: uploadError } = await supabase.storage
         .from('photos')
-        .upload(path, file, {
+        .upload(path, fileBuffer, {
           contentType: file.type || 'application/octet-stream',
           upsert: false,
         })

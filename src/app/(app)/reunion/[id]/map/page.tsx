@@ -56,6 +56,22 @@ export default async function MapPage({ params }: MapPageProps) {
         }
       : null
 
+  const { data: subEvents } = await supabase
+    .from('sub_events')
+    .select('id, name, date, location_name, latitude, longitude')
+    .eq('reunion_id', id)
+    .not('latitude', 'is', null)
+    .not('longitude', 'is', null)
+
+  const events = (subEvents ?? []).map((e) => ({
+    id: e.id,
+    name: e.name,
+    date: e.date,
+    location_name: e.location_name,
+    latitude: e.latitude as number,
+    longitude: e.longitude as number,
+  }))
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="mb-6">
@@ -65,7 +81,7 @@ export default async function MapPage({ params }: MapPageProps) {
         </p>
       </div>
 
-      <TravelMap members={visibleMembers} reunionLocation={reunionLocation} />
+      <TravelMap members={visibleMembers} reunionLocation={reunionLocation} events={events} reunionId={id} />
     </div>
   )
 }
