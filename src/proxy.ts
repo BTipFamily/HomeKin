@@ -32,11 +32,18 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Public paths that don't require auth
+  // Public paths that don't require auth. /api/webhooks is called
+  // server-to-server by Stripe (authenticated via signature verification,
+  // never a session cookie) and /api/rsvp is opened by invitees who may
+  // not have an account yet (authenticated by the unguessable token in
+  // the URL) — both would otherwise get redirected to /login before their
+  // handler ever runs.
   const isPublicPath =
     pathname.startsWith('/login') ||
     pathname.startsWith('/signup') ||
     pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/webhooks') ||
+    pathname.startsWith('/api/rsvp') ||
     pathname === '/'
 
   if (!user && !isPublicPath) {
