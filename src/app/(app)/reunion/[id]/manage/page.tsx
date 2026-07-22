@@ -135,6 +135,34 @@ export default async function ManagePage({ params }: ManagePageProps) {
                 defaultValue={reunion.year}
               />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="start_date">Start Date</Label>
+                <Input
+                  id="start_date"
+                  name="start_date"
+                  type="date"
+                  defaultValue={reunion.start_date ?? ''}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="end_date">End Date</Label>
+                <Input
+                  id="end_date"
+                  name="end_date"
+                  type="date"
+                  min={reunion.start_date ?? undefined}
+                  defaultValue={reunion.end_date ?? ''}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground -mt-2">
+              The start date drives the{' '}
+              <Link href={`/reunion/${id}/timeline`} className="underline">
+                Timeline
+              </Link>{' '}
+              planning steps.
+            </p>
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
               <Textarea

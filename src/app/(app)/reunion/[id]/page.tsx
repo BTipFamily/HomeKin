@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Pin, Plus, Trash2, Calendar, Camera, Users, MessageCircle, ClipboardList, DollarSign } from 'lucide-react'
+import { Pin, Plus, Trash2, Calendar, Camera, Users, MessageCircle, ClipboardList, DollarSign, ListChecks, Wallet } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { createAnnouncement, deleteAnnouncement } from '@/lib/actions/announcements'
 
@@ -112,11 +112,23 @@ export default async function ReunionPage({ params }: ReunionPageProps) {
             <span className="text-xs">Surveys ({surveyCount ?? 0})</span>
           </Link>
         </Button>
+        <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
+          <Link href={`/reunion/${id}/timeline`}>
+            <ListChecks className="h-5 w-5" />
+            <span className="text-xs">Timeline</span>
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
+          <Link href={`/reunion/${id}/budget-estimator`}>
+            <Wallet className="h-5 w-5" />
+            <span className="text-xs">Budget Estimator</span>
+          </Link>
+        </Button>
         {canManage && (
           <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
             <Link href={`/reunion/${id}/budget`}>
               <DollarSign className="h-5 w-5" />
-              <span className="text-xs">Budget</span>
+              <span className="text-xs">Payments</span>
             </Link>
           </Button>
         )}

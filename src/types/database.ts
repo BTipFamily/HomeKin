@@ -60,8 +60,81 @@ export type Reunion = {
   address: string | null
   latitude: number | null
   longitude: number | null
+  start_date: string | null
+  end_date: string | null
   created_by: string | null
   created_at: string
+}
+
+export type BudgetCategoryKey =
+  | 'venue'
+  | 'catering'
+  | 'activities'
+  | 'entertainment'
+  | 'heritage'
+  | 'merchandise'
+  | 'photography'
+  | 'lodging'
+
+export type BudgetEstimateType =
+  | 'one_time'
+  | 'per_person'
+  | 'per_person_day'
+  | 'per_adult_day'
+  | 'per_room_night'
+
+export type BudgetCategory = {
+  key: BudgetCategoryKey
+  label: string
+  enabled: boolean
+  estimate_type: BudgetEstimateType
+  unit_amount: number
+}
+
+export type BudgetStyle = 'low' | 'average' | 'high'
+
+export type LodgingType = 'hotel_resort' | 'vacation_rental' | 'mixed'
+
+export type ReunionBudgetEstimate = {
+  id: string
+  reunion_id: string
+  host_city: string | null
+  nights: number
+  budget_style: BudgetStyle
+  adults_count: number
+  youth_count: number
+  toddlers_count: number
+  lodging_type: LodgingType
+  categories: BudgetCategory[]
+  total_estimate: number
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type TimelineItemCategory =
+  | 'logistics'
+  | 'venue'
+  | 'lodging'
+  | 'rsvp'
+  | 'vendor'
+  | 'merchandise'
+  | 'heritage'
+  | 'final'
+
+export type ReunionTimelineItem = {
+  id: string
+  reunion_id: string
+  title: string
+  phase_label: string | null
+  category: TimelineItemCategory
+  due_date: string | null
+  is_complete: boolean
+  is_custom: boolean
+  sort_order: number
+  created_by: string | null
+  created_at: string
+  updated_at: string
 }
 
 export type Relationship = {
