@@ -49,6 +49,8 @@ export async function updateReunion(reunionId: string, formData: FormData) {
   const description = formData.get('description') as string
   const locationName = formData.get('location_name') as string
   const address = formData.get('address') as string
+  const startDate = (formData.get('start_date') as string) || null
+  const endDate = (formData.get('end_date') as string) || null
 
   const normalizedAddress = address || null
 
@@ -78,6 +80,8 @@ export async function updateReunion(reunionId: string, formData: FormData) {
       description: description || null,
       location_name: locationName || null,
       address: normalizedAddress,
+      start_date: startDate,
+      end_date: endDate,
       ...geoFields,
     })
     .eq('id', reunionId)
