@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, Link2, ArrowRight } from 'lucide-react'
+import { Users, Link2, ArrowRight, FileSpreadsheet } from 'lucide-react'
 
 export default async function AdminPage() {
   const supabase = await createClient()
@@ -68,6 +68,25 @@ export default async function AdminPage() {
             <Button asChild>
               <Link href="/admin/invite">
                 Manage Invites <ArrowRight className="ml-1.5 h-4 w-4" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5" />
+              Import Members
+            </CardTitle>
+            <CardDescription>
+              Bulk-add family members and their relationships from a spreadsheet.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/directory/import">
+                Import from CSV <ArrowRight className="ml-1.5 h-4 w-4" />
               </Link>
             </Button>
           </CardContent>

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { getInitials } from '@/lib/utils'
-import { Search, Plus, Phone, Mail } from 'lucide-react'
+import { Search, Plus, Phone, Mail, FileSpreadsheet } from 'lucide-react'
 import type { Member } from '@/types/database'
 
 interface DirectoryPageProps {
@@ -52,6 +52,7 @@ export default async function DirectoryPage({ searchParams }: DirectoryPageProps
   const uniqueBranches = [...new Set(branches?.map((b) => b.family_branch).filter(Boolean))]
 
   const canAdmin = currentMember?.role === 'admin'
+  const canManage = ['committee', 'admin'].includes(currentMember?.role ?? '')
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -60,14 +61,24 @@ export default async function DirectoryPage({ searchParams }: DirectoryPageProps
           <h1 className="text-2xl font-bold">Family Directory</h1>
           <p className="text-sm text-muted-foreground">{members?.length ?? 0} members</p>
         </div>
-        {canAdmin && (
-          <Button asChild>
-            <Link href="/admin/members">
-              <Plus className="mr-1.5 h-4 w-4" />
-              Add Member
-            </Link>
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canManage && (
+            <Button asChild variant="outline">
+              <Link href="/directory/import">
+                <FileSpreadsheet className="mr-1.5 h-4 w-4" />
+                Import from Spreadsheet
+              </Link>
+            </Button>
+          )}
+          {canAdmin && (
+            <Button asChild>
+              <Link href="/admin/members">
+                <Plus className="mr-1.5 h-4 w-4" />
+                Add Member
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Search & filters */}
