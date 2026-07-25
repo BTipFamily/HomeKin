@@ -12,6 +12,7 @@ import { ArrowLeft, X } from 'lucide-react'
 import { updateMemberProfile } from '@/lib/actions/members'
 import { deleteRelationship } from '@/lib/actions/relationships'
 import { getInitials } from '@/lib/utils'
+import { MIN_BIRTH_YEAR } from '@/lib/birthday'
 import type { Relationship } from '@/types/database'
 import { ProfilePhotoUpload } from './photo-upload'
 import { RelationshipPicker } from './relationship-picker'
@@ -65,6 +66,8 @@ export default async function EditProfilePage({ params }: EditProfilePageProps) 
     : { data: [] }
 
   const otherPartyLookup = Object.fromEntries((otherPartyRows ?? []).map((m) => [m.id, m]))
+
+  const today = new Date().toISOString().slice(0, 10)
 
   function describeRelationship(rel: Relationship): string {
     const other = otherPartyLookup[rel.member_id === id ? rel.related_member_id : rel.member_id]
@@ -144,6 +147,22 @@ export default async function EditProfilePage({ params }: EditProfilePageProps) 
                 defaultValue={member.family_branch ?? ''}
                 placeholder="e.g. Grandma Rose's side"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="date_of_birth">Date of Birth</Label>
+              <Input
+                id="date_of_birth"
+                name="date_of_birth"
+                type="date"
+                defaultValue={member.date_of_birth ?? ''}
+                min={`${MIN_BIRTH_YEAR}-01-01`}
+                max={today}
+                className="w-full sm:w-56"
+              />
+              <p className="text-xs text-muted-foreground">
+                Shown on your profile with your age. Leave blank to keep it private.
+              </p>
             </div>
 
             <div className="space-y-2">

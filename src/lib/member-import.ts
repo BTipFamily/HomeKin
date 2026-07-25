@@ -2,10 +2,13 @@
 // Deliberately free of Supabase imports so it can be unit-tested directly.
 
 import { toCsv } from '@/lib/csv'
+import { parseBirthDate, parseDateInput } from '@/lib/birthday'
 import type { Gender, ParentChildKind, PartnerStatus, Role } from '@/types/database'
 
 export const MAX_IMPORT_ROWS = 500
-export const MAX_IMPORT_BYTES = 1_000_000 // 1 MB
+// Kept comfortably under serverActions.bodySizeLimit in next.config.ts so an
+// oversized file gets our message rather than an opaque framework error.
+export const MAX_IMPORT_BYTES = 3_000_000 // 3 MB
 
 export const IMPORT_COLUMNS = [
   'external_id',
@@ -14,6 +17,7 @@ export const IMPORT_COLUMNS = [
   'phone',
   'address',
   'family_branch',
+  'date_of_birth',
   'gender',
   'bio',
   'role',
@@ -42,74 +46,59 @@ const PARTNER_STATUSES: PartnerStatus[] = [
 ]
 const ROLES: Role[] = ['member', 'committee', 'admin']
 
-/** Sample rows shipped in the template: a two-generation family with a married couple. */
-const TEMPLATE_EXAMPLE_ROWS: string[][] = [
-  [
-    '1',
-    'Joe Smith',
-    'joe.smith@example.com',
-    '555-0101',
-    '123 Main St, Atlanta, GA',
-    'Smith',
-    'male',
-    'Family patriarch.',
-    'member',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '2',
-    'married',
-    '1975-06-14',
-    '',
-  ],
-  [
-    '2',
-    'Rose Smith',
-    'rose.smith@example.com',
-    '555-0102',
-    '123 Main St, Atlanta, GA',
-    'Smith',
-    'female',
-    '',
-    'member',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '1',
-    'married',
-    '1975-06-14',
-    '',
-  ],
-  [
-    '3',
-    'Alice Smith',
-    'alice.smith@example.com',
-    '',
-    '',
-    'Smith',
-    'female',
-    '',
-    'member',
-    '',
-    '',
-    '',
-    '1',
-    '2',
-    'biological',
-    '',
-    '',
-    '',
-    '',
-  ],
+/**
+ * Sample rows shipped in the template: a two-generation family with a married
+ * couple. Keyed by column name so adding a column can't silently shift the
+ * values in every row.
+ */
+const TEMPLATE_EXAMPLE_ROWS: Partial<Record<ImportColumn, string>>[] = [
+  {
+    external_id: '1',
+    name: 'Joe Smith',
+    email: 'joe.smith@example.com',
+    phone: '555-0101',
+    address: '123 Main St, Atlanta, GA',
+    family_branch: 'Smith',
+    date_of_birth: '1950-03-02',
+    gender: 'male',
+    bio: 'Family patriarch.',
+    role: 'member',
+    spouse: '2',
+    spouse_status: 'married',
+    spouse_start_date: '1975-06-14',
+  },
+  {
+    external_id: '2',
+    name: 'Rose Smith',
+    email: 'rose.smith@example.com',
+    phone: '555-0102',
+    address: '123 Main St, Atlanta, GA',
+    family_branch: 'Smith',
+    date_of_birth: '1952-11-19',
+    gender: 'female',
+    role: 'member',
+    spouse: '1',
+    spouse_status: 'married',
+    spouse_start_date: '1975-06-14',
+  },
+  {
+    external_id: '3',
+    name: 'Alice Smith',
+    email: 'alice.smith@example.com',
+    family_branch: 'Smith',
+    date_of_birth: '1980-07-30',
+    gender: 'female',
+    role: 'member',
+    parent_1: '1',
+    parent_2: '2',
+    parent_kind: 'biological',
+  },
 ]
 
-export const TEMPLATE_CSV = toCsv([[...IMPORT_COLUMNS], ...TEMPLATE_EXAMPLE_ROWS])
+export const TEMPLATE_CSV = toCsv([
+  [...IMPORT_COLUMNS],
+  ...TEMPLATE_EXAMPLE_ROWS.map((row) => IMPORT_COLUMNS.map((col) => row[col] ?? '')),
+])
 
 export type ImportIssue = {
   /** 1-based row number as it appears in the spreadsheet (header is row 1). */
@@ -126,6 +115,8 @@ export type ParsedPerson = {
   phone: string | null
   address: string | null
   familyBranch: string | null
+  /** ISO date (YYYY-MM-DD). */
+  dateOfBirth: string | null
   gender: Gender | null
   bio: string | null
   role: Role
@@ -176,8 +167,6 @@ function normalizeEmail(value: string): string {
 // Intentionally permissive: we only reject shapes that clearly aren't addresses,
 // since the DB has no format constraint and over-strict regexes reject valid mail.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 function mapHeader(headerRow: string[]): {
   index: Partial<Record<ImportColumn, number>>
@@ -302,6 +291,17 @@ export function buildImportPlan(
     }
     if (email) refToEmail.set(email, email)
 
+    const dobRaw = cell(raw, 'date_of_birth')
+    let dateOfBirth: string | null = null
+    if (dobRaw) {
+      const parsed = parseBirthDate(dobRaw)
+      if ('error' in parsed) {
+        fail(`Date of birth ${parsed.error}`, 'date_of_birth')
+      } else {
+        dateOfBirth = parsed.iso
+      }
+    }
+
     const genderRaw = cell(raw, 'gender').toLowerCase()
     let gender: Gender | null = null
     if (genderRaw) {
@@ -338,6 +338,7 @@ export function buildImportPlan(
       phone: cell(raw, 'phone') || null,
       address: cell(raw, 'address') || null,
       familyBranch: cell(raw, 'family_branch') || null,
+      dateOfBirth,
       gender,
       bio: cell(raw, 'bio') || null,
       role,
@@ -447,16 +448,20 @@ export function buildImportPlan(
       }
     }
 
-    const startDate = cell(raw, 'spouse_start_date') || null
-    const endDate = cell(raw, 'spouse_end_date') || null
-    if (startDate && !DATE_RE.test(startDate)) {
-      fail(`spouse_start_date must be formatted YYYY-MM-DD (got "${startDate}").`, 'spouse_start_date')
-      return
+    const readDate = (column: 'spouse_start_date' | 'spouse_end_date'): string | null | 'invalid' => {
+      const value = cell(raw, column)
+      if (!value) return null
+      const parsed = parseDateInput(value)
+      if ('error' in parsed) {
+        fail(`${column} ${parsed.error}`, column)
+        return 'invalid'
+      }
+      return parsed.iso
     }
-    if (endDate && !DATE_RE.test(endDate)) {
-      fail(`spouse_end_date must be formatted YYYY-MM-DD (got "${endDate}").`, 'spouse_end_date')
-      return
-    }
+
+    const startDate = readDate('spouse_start_date')
+    const endDate = readDate('spouse_end_date')
+    if (startDate === 'invalid' || endDate === 'invalid') return
 
     // Partner edges are symmetric but stored as one directed row, so a couple
     // listing each other should yield a single relationship.

@@ -26,6 +26,7 @@ export type VisibilitySettings = {
   phone?: 'members' | 'committee' | 'none'
   address?: 'members' | 'committee' | 'none'
   email?: 'members' | 'committee' | 'none'
+  date_of_birth?: 'members' | 'committee' | 'none'
 }
 
 export type Member = {
@@ -36,6 +37,8 @@ export type Member = {
   phone: string | null
   address: string | null
   family_branch: string | null
+  /** ISO date (YYYY-MM-DD), or null when the member hasn't given one. */
+  date_of_birth: string | null
   bio: string | null
   photo_url: string | null
   social_links: SocialLinks

@@ -10,6 +10,7 @@ import { ArrowLeft } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 import { updateMemberRole } from '@/lib/actions/members'
 import { createProxyMember } from '@/lib/actions/members'
+import { MIN_BIRTH_YEAR } from '@/lib/birthday'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { Role } from '@/types/database'
@@ -67,6 +68,16 @@ export default async function AdminMembersPage() {
             <div className="space-y-1">
               <Label htmlFor="family_branch">Family Branch</Label>
               <Input id="family_branch" name="family_branch" placeholder="e.g. Grandma Rose's side" />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="date_of_birth">Date of Birth</Label>
+              <Input
+                id="date_of_birth"
+                name="date_of_birth"
+                type="date"
+                min={`${MIN_BIRTH_YEAR}-01-01`}
+                max={new Date().toISOString().slice(0, 10)}
+              />
             </div>
             <div className="sm:col-span-2">
               <Button type="submit">Create Profile</Button>

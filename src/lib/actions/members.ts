@@ -4,7 +4,22 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { geocodeAddress } from '@/lib/geocoding'
+import { parseBirthDate } from '@/lib/birthday'
 import type { Role } from '@/types/database'
+
+/**
+ * Reads a date-of-birth field off a form. `<input type="date">` submits ISO,
+ * but the field is also reachable by anyone who can POST the action, so the
+ * value is re-validated here rather than trusted.
+ */
+function readDateOfBirth(formData: FormData): string | null {
+  const raw = ((formData.get('date_of_birth') as string) ?? '').trim()
+  if (!raw) return null
+
+  const parsed = parseBirthDate(raw)
+  if ('error' in parsed) throw new Error(`Date of birth ${parsed.error}`)
+  return parsed.iso
+}
 
 export async function updateMemberProfile(formData: FormData) {
   const supabase = await createClient()
@@ -22,6 +37,7 @@ export async function updateMemberProfile(formData: FormData) {
   const facebook = formData.get('facebook') as string
   const instagram = formData.get('instagram') as string
   const linkedin = formData.get('linkedin') as string
+  const dateOfBirth = readDateOfBirth(formData)
 
   const normalizedAddress = address || null
 
@@ -54,6 +70,7 @@ export async function updateMemberProfile(formData: FormData) {
       phone: phone || null,
       address: normalizedAddress,
       family_branch: familyBranch || null,
+      date_of_birth: dateOfBirth,
       bio: bio || null,
       social_links: {
         facebook: facebook || null,
@@ -92,12 +109,14 @@ export async function createProxyMember(formData: FormData) {
   const email = formData.get('email') as string
   const phone = formData.get('phone') as string
   const familyBranch = formData.get('family_branch') as string
+  const dateOfBirth = readDateOfBirth(formData)
 
   const { error } = await serviceClient.from('members').insert({
     name,
     email,
     phone: phone || null,
     family_branch: familyBranch || null,
+    date_of_birth: dateOfBirth,
     role: 'member',
     created_by_proxy: true,
   })

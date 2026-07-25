@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -28,29 +28,50 @@ import { IMPORT_COLUMNS, MAX_IMPORT_ROWS, type ImportPlan } from '@/lib/member-i
 const REQUIRED_COLUMNS = ['name', 'email']
 const RELATIONSHIP_COLUMNS = ['parent_1', 'parent_2', 'parent_kind', 'spouse', 'spouse_status']
 
+/**
+ * Both the extensions and their MIME types: some browsers match the file
+ * picker on one and some on the other, and a filter that misses means the
+ * user's spreadsheet appears greyed out with no explanation. `.xls` is listed
+ * so the server can explain that it needs re-saving, rather than the OS
+ * silently hiding the file.
+ */
+const ACCEPTED_FILE_TYPES = [
+  '.csv',
+  '.xlsx',
+  '.xls',
+  'text/csv',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+].join(',')
+
 export default function ImportClient({ isAdmin }: { isAdmin: boolean }) {
   const [isPending, startTransition] = useTransition()
-  const [fileName, setFileName] = useState<string | null>(null)
-  const [csvText, setCsvText] = useState<string | null>(null)
+  const [file, setFile] = useState<File | null>(null)
   const [plan, setPlan] = useState<ImportPlan | null>(null)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const reviewRef = useRef<HTMLDivElement>(null)
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
+  // The review step renders below the fold on a phone, which reads as "nothing
+  // happened". Bring it into view as soon as there is something to review.
+  useEffect(() => {
+    if (plan) reviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [plan])
+
+  function selectFile(next: File | null) {
     setPlan(null)
     setResult(null)
     setError(null)
-    setCsvText(null)
-    setFileName(file?.name ?? null)
-    if (!file) return
+    setFile(next)
+    if (!next) return
 
     startTransition(async () => {
       try {
-        const text = await file.text()
-        setCsvText(text)
-        const nextPlan = await previewMemberImport(text)
-        setPlan(nextPlan)
+        const formData = new FormData()
+        formData.set('file', next)
+        setPlan(await previewMemberImport(formData))
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Could not read that file.')
       }
@@ -58,12 +79,13 @@ export default function ImportClient({ isAdmin }: { isAdmin: boolean }) {
   }
 
   function handleImport() {
-    if (!csvText) return
+    if (!file) return
     setError(null)
     startTransition(async () => {
       try {
-        const nextResult = await commitMemberImport(csvText)
-        setResult(nextResult)
+        const formData = new FormData()
+        formData.set('file', file)
+        setResult(await commitMemberImport(formData))
         setPlan(null)
       } catch (e) {
         setError(e instanceof Error ? e.message : 'The import failed.')
@@ -72,11 +94,11 @@ export default function ImportClient({ isAdmin }: { isAdmin: boolean }) {
   }
 
   function reset() {
-    setFileName(null)
-    setCsvText(null)
+    setFile(null)
     setPlan(null)
     setResult(null)
     setError(null)
+    if (inputRef.current) inputRef.current.value = ''
   }
 
   // ---- Success state ----
@@ -156,7 +178,8 @@ export default function ImportClient({ isAdmin }: { isAdmin: boolean }) {
           <div className="space-y-2 text-sm text-muted-foreground">
             <p>
               Open it in Excel or Google Sheets, replace the example rows with your family, then
-              save as <strong>CSV</strong>. Up to {MAX_IMPORT_ROWS} people per file.
+              save it as <strong>.xlsx</strong> or <strong>.csv</strong> — we read both. Up to{' '}
+              {MAX_IMPORT_ROWS} people per file.
             </p>
             <div>
               <p className="font-medium text-foreground">Columns</p>
@@ -174,7 +197,10 @@ export default function ImportClient({ isAdmin }: { isAdmin: boolean }) {
               </div>
               <p className="mt-2 text-xs">
                 <strong>name</strong> and <strong>email</strong> are required — email is how each
-                person later claims their own profile when they sign up.
+                person later claims their own profile when they sign up. Everything else is
+                optional. Dates such as <code className="font-mono">date_of_birth</code> can be
+                written <code className="font-mono">1975-06-14</code> or{' '}
+                <code className="font-mono">6/14/1975</code>, but always with a four-digit year.
               </p>
             </div>
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">
@@ -213,22 +239,49 @@ export default function ImportClient({ isAdmin }: { isAdmin: boolean }) {
           <CardTitle className="text-base">2. Upload your file</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center transition-colors hover:bg-muted/50">
+          <div
+            onDragOver={(e) => {
+              e.preventDefault()
+              setIsDragging(true)
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setIsDragging(false)
+              if (!isPending) selectFile(e.dataTransfer.files?.[0] ?? null)
+            }}
+            className={`flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-8 text-center transition-colors ${
+              isDragging ? 'border-primary bg-primary/5' : ''
+            }`}
+          >
             <FileSpreadsheet className="h-8 w-8 text-muted-foreground" />
-            <span className="text-sm font-medium">
-              {fileName ?? 'Choose a CSV file'}
-            </span>
+            {file ? (
+              <p className="text-sm font-medium break-all">{file.name}</p>
+            ) : (
+              <p className="text-sm font-medium">Drag a file here, or</p>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => inputRef.current?.click()}
+              disabled={isPending}
+            >
+              <Upload className="mr-1.5 h-4 w-4" />
+              {file ? 'Choose a Different File' : 'Choose File'}
+            </Button>
             <span className="text-xs text-muted-foreground">
-              We&apos;ll check it and show you a preview before anything is saved.
+              Excel (.xlsx) or CSV. We&apos;ll check it and show you a preview before anything is
+              saved.
             </span>
             <input
+              ref={inputRef}
               type="file"
-              accept=".csv,text/csv"
-              className="hidden"
-              onChange={handleFileChange}
+              accept={ACCEPTED_FILE_TYPES}
+              className="sr-only"
+              onChange={(e) => selectFile(e.target.files?.[0] ?? null)}
               disabled={isPending}
             />
-          </label>
+          </div>
 
           {isPending && !plan && (
             <p className="text-sm text-muted-foreground">Checking your file...</p>
@@ -244,7 +297,7 @@ export default function ImportClient({ isAdmin }: { isAdmin: boolean }) {
 
       {/* Step 3 — preview */}
       {plan && (
-        <Card>
+        <Card ref={reviewRef}>
           <CardHeader>
             <CardTitle className="text-base">3. Review and import</CardTitle>
           </CardHeader>

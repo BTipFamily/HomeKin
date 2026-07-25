@@ -31,7 +31,8 @@ export default async function DirectoryImportPage() {
 
       <h1 className="text-2xl font-bold">Import Members from a Spreadsheet</h1>
       <p className="mt-1 text-muted-foreground">
-        Add many family members at once — along with their parents and spouses — from a CSV file.
+        Add many family members at once — along with their parents and spouses — from an Excel
+        (.xlsx) or CSV file.
       </p>
 
       <div className="mt-6">

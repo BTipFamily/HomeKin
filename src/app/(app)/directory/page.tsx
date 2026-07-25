@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { getInitials } from '@/lib/utils'
-import { Search, Plus, Phone, Mail, FileSpreadsheet } from 'lucide-react'
-import type { Member } from '@/types/database'
+import { canViewField } from '@/lib/visibility'
+import { formatBirthdayShort } from '@/lib/birthday'
+import { Search, Plus, Cake, FileSpreadsheet } from 'lucide-react'
+import type { Member, Role } from '@/types/database'
 
 interface DirectoryPageProps {
   searchParams: Promise<{ q?: string; branch?: string }>
@@ -119,7 +121,12 @@ export default async function DirectoryPage({ searchParams }: DirectoryPageProps
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {members.map((member: Member) => (
-            <MemberCard key={member.id} member={member} currentMemberId={currentMember?.id} />
+            <MemberCard
+              key={member.id}
+              member={member}
+              currentMemberId={currentMember?.id}
+              viewerRole={(currentMember?.role as Role) ?? 'member'}
+            />
           ))}
         </div>
       )}
@@ -130,11 +137,20 @@ export default async function DirectoryPage({ searchParams }: DirectoryPageProps
 function MemberCard({
   member,
   currentMemberId,
+  viewerRole,
 }: {
   member: Member
   currentMemberId?: string
+  viewerRole: Role
 }) {
   const isMe = member.id === currentMemberId
+  // Month and day only — the year stays on the profile page, so the directory
+  // is useful for spotting birthdays without broadcasting everyone's age.
+  const birthday =
+    member.date_of_birth &&
+    (isMe || canViewField(member.visibility_settings, 'date_of_birth', viewerRole))
+      ? formatBirthdayShort(member.date_of_birth)
+      : null
 
   return (
     <Link href={`/directory/${member.id}`}>
@@ -155,6 +171,12 @@ function MemberCard({
               {member.family_branch && (
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">
                   {member.family_branch}
+                </p>
+              )}
+              {birthday && (
+                <p className="mt-1 flex items-center justify-center gap-1 truncate text-xs text-muted-foreground">
+                  <Cake className="h-3 w-3 shrink-0" />
+                  {birthday}
                 </p>
               )}
             </div>
