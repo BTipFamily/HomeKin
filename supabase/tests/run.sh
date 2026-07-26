@@ -85,3 +85,7 @@ psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/06_delete_re
 echo "--- payments ledger"
 psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/07_payments_ledger.sql" 2>&1 \
   | sed 's/^psql.*NOTICE:  /    /'
+
+echo "--- unread counts"
+psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/08_unread_counts.sql" 2>&1 \
+  | sed 's/^psql.*NOTICE:  /    /'

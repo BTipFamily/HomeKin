@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
+import type { ChatMessage } from '@/lib/chat'
+import type { RosterMember } from '@/lib/presence'
 import ChatClient from './chat-client'
 
 interface ChatPageProps {
@@ -58,6 +60,11 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
 
   const { data: initialMessages } = await messagesQuery
 
+  const { data: roster } = await supabase
+    .from('members')
+    .select('id, name, photo_url, last_seen_at')
+    .order('name')
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       <div className="border-b px-4 py-3 flex items-center gap-3">
@@ -75,8 +82,9 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       <ChatClient
         reunionId={id}
         subEventId={subEventId ?? null}
-        initialMessages={initialMessages ?? []}
+        initialMessages={(initialMessages ?? []) as unknown as ChatMessage[]}
         currentMember={member}
+        roster={(roster ?? []) as RosterMember[]}
       />
     </div>
   )

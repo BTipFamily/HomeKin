@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AppNav } from '@/components/layout/app-nav'
+import { PresenceHeartbeat } from '@/components/presence-heartbeat'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -30,6 +31,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen flex-col">
+      {/* Keeps last_seen_at fresh so the chat roster knows who is around. */}
+      <PresenceHeartbeat />
       <AppNav member={member} reunions={reunions ?? []} />
       <main className="flex-1">{children}</main>
     </div>

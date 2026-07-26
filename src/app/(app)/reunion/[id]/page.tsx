@@ -8,6 +8,7 @@ import { Pin, Trash2, Calendar, Camera, Users, MessageCircle, ClipboardList, Dol
 import { formatDate } from '@/lib/utils'
 import { deleteAnnouncement } from '@/lib/actions/announcements'
 import { AnnouncementForm } from './announcement-form'
+import { getUnreadCounts, markChannelRead } from '@/lib/actions/chat'
 
 interface ReunionPageProps {
   params: Promise<{ id: string }>
@@ -67,6 +68,14 @@ export default async function ReunionPage({ params }: ReunionPageProps) {
 
   const canManage = ['committee', 'admin'].includes(member.role)
 
+  const unread = (await getUnreadCounts())[id]
+  const unreadChat = unread?.chat ?? 0
+  const unreadPosts = unread?.announcements ?? 0
+
+  // Opening the reunion page counts as having seen its announcements. The chat
+  // is marked read separately, when the chat itself is opened.
+  if (unreadPosts > 0) await markChannelRead(id, null, 'announcements')
+
   async function handleDeleteAnnouncement(announcementId: string) {
     'use server'
     await deleteAnnouncement(announcementId, id)
@@ -97,9 +106,14 @@ export default async function ReunionPage({ params }: ReunionPageProps) {
           </Link>
         </Button>
         <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
-          <Link href={`/reunion/${id}/chat`}>
+          <Link href={`/reunion/${id}/chat`} className="relative">
             <MessageCircle className="h-5 w-5" />
             <span className="text-xs">Chat</span>
+            {unreadChat > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
+                {unreadChat > 99 ? '99+' : unreadChat}
+              </span>
+            )}
           </Link>
         </Button>
         <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
@@ -163,7 +177,14 @@ export default async function ReunionPage({ params }: ReunionPageProps) {
 
       {/* Announcements feed */}
       <div className="space-y-4">
-        <h2 className="font-semibold text-lg">Announcements</h2>
+        <h2 className="flex items-center gap-2 font-semibold text-lg">
+          Announcements
+          {unreadPosts > 0 && (
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-medium text-white">
+              {unreadPosts} new
+            </span>
+          )}
+        </h2>
         {(!announcements || announcements.length === 0) ? (
           <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
             <p>No announcements yet.</p>

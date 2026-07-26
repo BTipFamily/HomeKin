@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Calendar, Users, Camera, Megaphone, Plus, ArrowRight, Settings } from 'lucide-react'
+import { getUnreadCounts } from '@/lib/actions/chat'
 import { formatDate } from '@/lib/utils'
 
 interface DashboardPageProps {
@@ -38,6 +39,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     .select('*', { count: 'exact', head: true })
 
   const canManage = ['committee', 'admin'].includes(member.role)
+
+  // One round-trip for every reunion at once, rather than a pair each.
+  const unread = await getUnreadCounts()
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -127,7 +131,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle className="text-lg">{reunion.name}</CardTitle>
-                    <Badge variant="secondary">{reunion.year}</Badge>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <UnreadBadge counts={unread[reunion.id]} />
+                      <Badge variant="secondary">{reunion.year}</Badge>
+                    </div>
                   </div>
                   {reunion.description && (
                     <CardDescription className="line-clamp-2">
@@ -202,5 +209,24 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         )}
       </div>
     </div>
+  )
+}
+
+/** Shows how much a member has not read in a reunion, or nothing at all. */
+function UnreadBadge({ counts }: { counts?: { chat: number; announcements: number } }) {
+  const total = (counts?.chat ?? 0) + (counts?.announcements ?? 0)
+  if (total === 0) return null
+
+  const parts = [
+    counts?.chat ? `${counts.chat} message${counts.chat === 1 ? '' : 's'}` : null,
+    counts?.announcements
+      ? `${counts.announcements} announcement${counts.announcements === 1 ? '' : 's'}`
+      : null,
+  ].filter(Boolean)
+
+  return (
+    <Badge className="bg-red-500 hover:bg-red-500" title={`Unread: ${parts.join(', ')}`}>
+      {total > 99 ? '99+' : total} new
+    </Badge>
   )
 }
