@@ -17,7 +17,8 @@ insert into members (id, auth_user_id, name, email, role) values
 
 insert into reunions (id, name, year) values ('25000000-0000-0000-0000-000000000001', 'R', 2026);
 insert into sub_events (id, reunion_id, name, date, cost_per_person) values
-  ('35000000-0000-0000-0000-000000000001', '25000000-0000-0000-0000-000000000001', 'Banquet', '2026-08-01', 50);
+  ('35000000-0000-0000-0000-000000000001', '25000000-0000-0000-0000-000000000001', 'Banquet', '2026-08-01', 50),
+  ('35000000-0000-0000-0000-000000000002', '25000000-0000-0000-0000-000000000001', 'Picnic', '2026-08-02', 50);
 
 insert into balances (id, member_id, reunion_id, sub_event_id, amount_owed, amount_paid) values
   ('45000000-0000-0000-0000-000000000001', '15000000-0000-0000-0000-000000000002',
@@ -135,6 +136,58 @@ begin
   update balances set amount_owed = 80 where id = '45000000-0000-0000-0000-000000000002';
   perform assert('lowering it back settles it again',
     (select status from balances where id = '45000000-0000-0000-0000-000000000002') = 'paid');
+end $$;
+
+-- ---- headcount drift ----
+-- Adding a guest after paying used to leave amount_owed at the old figure, so
+-- the extra was never billed. amount_owed is now always recalculated and the
+-- derived status does the rest.
+insert into balances (id, member_id, reunion_id, sub_event_id, amount_owed, amount_paid) values
+  ('45000000-0000-0000-0000-000000000003', '15000000-0000-0000-0000-000000000002',
+   '25000000-0000-0000-0000-000000000001', '35000000-0000-0000-0000-000000000002', 50, 0);
+
+do $$
+begin
+  insert into payments (balance_id, member_id, reunion_id, amount, method) values
+    ('45000000-0000-0000-0000-000000000003', '15000000-0000-0000-0000-000000000002',
+     '25000000-0000-0000-0000-000000000001', 50, 'stripe');
+  perform assert('one guest paid in full',
+    (select status from balances where id = '45000000-0000-0000-0000-000000000003') = 'paid');
+
+  -- A second guest added: 2 x $50.
+  update balances set amount_owed = 100 where id = '45000000-0000-0000-0000-000000000003';
+
+  perform assert('adding a guest after paying reopens the balance',
+    (select status from balances where id = '45000000-0000-0000-0000-000000000003')
+      = 'partially_paid');
+  perform assert('the top-up owed is the difference, not the whole amount again',
+    (select amount_owed - amount_paid from balances
+      where id = '45000000-0000-0000-0000-000000000003') = 50);
+
+  -- Dropping back to one guest settles it again without touching the payment.
+  update balances set amount_owed = 50 where id = '45000000-0000-0000-0000-000000000003';
+  perform assert('removing the guest settles it again',
+    (select status from balances where id = '45000000-0000-0000-0000-000000000003') = 'paid');
+  perform assert('the original payment is untouched throughout',
+    (select amount_paid from balances where id = '45000000-0000-0000-0000-000000000003') = 50);
+end $$;
+
+-- ---- cancelling after paying ----
+do $$
+begin
+  -- What cancelSignup does when money has already changed hands: zero what is
+  -- owed and leave the payment, so the overpayment reads as a refund due.
+  update balances set amount_owed = 0 where id = '45000000-0000-0000-0000-000000000003';
+
+  perform assert('cancelling after paying leaves the payment in place',
+    (select amount_paid from balances where id = '45000000-0000-0000-0000-000000000003') = 50);
+  perform assert('nothing is owed once cancelled',
+    (select amount_owed from balances where id = '45000000-0000-0000-0000-000000000003') = 0);
+  perform assert('the balance reads as settled, with the payment showing as a credit',
+    (select status from balances where id = '45000000-0000-0000-0000-000000000003') = 'paid');
+  perform assert('the payment record survives for the refund',
+    (select count(*) from payments
+      where balance_id = '45000000-0000-0000-0000-000000000003') = 1);
 end $$;
 
 -- ---- cascades ----

@@ -64,10 +64,11 @@ export async function upsertSignup(formData: FormData) {
   // Auto-sync balance row for paid events (server-side only, bypasses RLS)
   if (subEvent && subEvent.cost_per_person > 0 && reunionId) {
     const serviceClient = createServiceClient()
-    // Check for existing unpaid/pending balance to avoid overwriting a paid one
+    const owed = headcount * subEvent.cost_per_person
+
     const { data: existing } = await serviceClient
       .from('balances')
-      .select('id, status')
+      .select('id')
       .eq('member_id', member.id)
       .eq('sub_event_id', subEventId)
       .maybeSingle()
@@ -77,21 +78,27 @@ export async function upsertSignup(formData: FormData) {
         member_id: member.id,
         reunion_id: reunionId,
         sub_event_id: subEventId,
-        amount_owed: headcount * subEvent.cost_per_person,
+        amount_owed: owed,
         amount_paid: 0,
-        status: 'unpaid',
       })
-    } else if (existing.status === 'unpaid') {
-      // Update amount if headcount changed and not yet paid
+    } else {
+      // Always recalculated, including on an already-paid balance. This used to
+      // be skipped unless the status was 'unpaid', so adding a guest after
+      // paying silently left the old, too-small figure and nobody was ever
+      // billed the difference. Status is derived from the payments ledger, so
+      // raising the amount reopens the balance and lowering it below what has
+      // been paid leaves a credit — both without anything here saying so.
       await serviceClient
         .from('balances')
-        .update({ amount_owed: headcount * subEvent.cost_per_person })
+        .update({ amount_owed: owed })
         .eq('id', existing.id)
     }
   }
 
   revalidatePath(`/reunion/${reunionId}/events/${subEventId}`)
   revalidatePath(`/reunion/${reunionId}/signups`)
+  revalidatePath(`/reunion/${reunionId}/budget`)
+  revalidatePath(`/directory/${member.id}`)
 }
 
 export async function cancelSignup(signupId: string, reunionId: string, subEventId: string) {
@@ -116,8 +123,32 @@ export async function cancelSignup(signupId: string, reunionId: string, subEvent
 
   if (error) throw new Error(error.message)
 
+  // Cancelling used to leave the balance standing, so someone who pulled out
+  // still appeared to owe for an event they were no longer attending.
+  const serviceClient = createServiceClient()
+  const { data: balance } = await serviceClient
+    .from('balances')
+    .select('id, amount_paid')
+    .eq('member_id', member.id)
+    .eq('sub_event_id', subEventId)
+    .maybeSingle()
+
+  if (balance) {
+    if (Number(balance.amount_paid) === 0) {
+      // Nothing was ever paid, so there is nothing to keep a record of.
+      await serviceClient.from('balances').delete().eq('id', balance.id)
+    } else {
+      // Money changed hands. Zeroing what is owed leaves the payments in place
+      // and shows as a credit, which is the committee's cue to refund it —
+      // rather than quietly deleting a record of real money.
+      await serviceClient.from('balances').update({ amount_owed: 0 }).eq('id', balance.id)
+    }
+  }
+
   revalidatePath(`/reunion/${reunionId}/events/${subEventId}`)
   revalidatePath(`/reunion/${reunionId}/signups`)
+  revalidatePath(`/reunion/${reunionId}/budget`)
+  revalidatePath(`/directory/${member.id}`)
 }
 
 export async function confirmSignup(signupId: string, reunionId: string) {
