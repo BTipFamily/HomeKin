@@ -229,6 +229,10 @@ export type InviteCode = {
   used_by: string | null
   used_at: string | null
   expires_at: string | null
+  /** Address the signup link was emailed to, or null if shared manually. */
+  sent_to: string | null
+  /** Set only once the email actually went out. */
+  sent_at: string | null
   created_at: string
 }
 

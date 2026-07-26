@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { findClaimableMember, normalizeEmail, redeemInviteCode } from '@/lib/member-linking'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -14,8 +15,10 @@ export async function POST(request: Request) {
   const { name, phone, family_branch, invite_code } = await request.json()
 
   const serviceClient = createServiceClient()
+  const email = normalizeEmail(user.email)
 
-  // Check if a member record already exists for this user
+  // Already provisioned — still redeem the code, since a signup that reused an
+  // existing profile used to leave the invite code redeemable forever.
   const { data: existing } = await serviceClient
     .from('members')
     .select('id')
@@ -23,42 +26,29 @@ export async function POST(request: Request) {
     .single()
 
   if (existing) {
+    await redeemInviteCode(serviceClient, invite_code, existing.id)
     return NextResponse.json({ ok: true })
   }
 
-  // Check for a proxy member with this email to link instead of creating new
-  const { data: proxyMember } = await serviceClient
-    .from('members')
-    .select('id')
-    .eq('email', user.email!)
-    .eq('created_by_proxy', true)
-    .is('auth_user_id', null)
-    .single()
+  // Claim the directory profile that was added for this person ahead of time.
+  const proxyMember = await findClaimableMember(serviceClient, email)
 
   if (proxyMember) {
     await serviceClient
       .from('members')
-      .update({ auth_user_id: user.id, created_by_proxy: false })
+      .update({ auth_user_id: user.id, created_by_proxy: false, email })
       .eq('id', proxyMember.id)
 
-    if (invite_code) {
-      await serviceClient
-        .from('invite_codes')
-        .update({ used_by: proxyMember.id, used_at: new Date().toISOString() })
-        .eq('code', invite_code)
-        .is('used_at', null)
-    }
-
+    await redeemInviteCode(serviceClient, invite_code, proxyMember.id)
     return NextResponse.json({ ok: true })
   }
 
-  // Create a new member record
   const { data: newMember, error } = await serviceClient
     .from('members')
     .insert({
       auth_user_id: user.id,
-      name: name || user.email!.split('@')[0],
-      email: user.email!,
+      name: name || email.split('@')[0],
+      email,
       phone: phone || null,
       family_branch: family_branch || null,
       role: 'member',
@@ -70,13 +60,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  if (invite_code && newMember) {
-    await serviceClient
-      .from('invite_codes')
-      .update({ used_by: newMember.id, used_at: new Date().toISOString() })
-      .eq('code', invite_code)
-      .is('used_at', null)
-  }
+  if (newMember) await redeemInviteCode(serviceClient, invite_code, newMember.id)
 
   return NextResponse.json({ ok: true })
 }

@@ -69,3 +69,7 @@ for f in "$ROOT"/supabase/migrations/*.sql; do
 done
 psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/03_merge_members_guards.sql" 2>&1 \
   | sed 's/^psql.*NOTICE:  /    /'
+
+echo "--- email normalization backfill"
+psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/04_email_normalization.sql" 2>&1 \
+  | sed 's/^psql.*NOTICE:  /    /'

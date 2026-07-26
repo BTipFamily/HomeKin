@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { geocodeAddress } from '@/lib/geocoding'
 import { parseBirthDate } from '@/lib/birthday'
+import { normalizeEmail } from '@/lib/member-linking'
 import type { Role } from '@/types/database'
 
 /**
@@ -106,7 +107,10 @@ export async function createProxyMember(formData: FormData) {
   const serviceClient = createServiceClient()
 
   const name = formData.get('name') as string
-  const email = formData.get('email') as string
+  // Stored lowercase so the signup that later claims this profile can find it:
+  // Supabase Auth lowercases addresses, and members.email compares case-
+  // sensitively, so a capitalised address here would never match.
+  const email = normalizeEmail(formData.get('email') as string)
   const phone = formData.get('phone') as string
   const familyBranch = formData.get('family_branch') as string
   const dateOfBirth = readDateOfBirth(formData)

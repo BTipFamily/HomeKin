@@ -3,13 +3,11 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ArrowLeft, Copy, Link2 } from 'lucide-react'
-import { generateInviteCode } from '@/lib/actions/invite-codes'
+import { ArrowLeft } from 'lucide-react'
 import { CopyButton } from './copy-button'
+import { GenerateInviteForm } from './generate-form'
 
 export default async function AdminInvitePage() {
   const supabase = await createClient()
@@ -49,28 +47,12 @@ export default async function AdminInvitePage() {
         <CardHeader>
           <CardTitle className="text-base">Generate New Invite Code</CardTitle>
           <CardDescription>
-            Each code can only be used once. Share the link or code with the new family member.
+            Each code can only be used once. Give an email address and we&apos;ll send the signup
+            link straight there, or leave it blank and share the link yourself.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={generateInviteCode} className="flex flex-wrap items-end gap-4">
-            <div className="space-y-1">
-              <Label htmlFor="expires_in_days">Expires in (days)</Label>
-              <Input
-                id="expires_in_days"
-                name="expires_in_days"
-                type="number"
-                defaultValue="30"
-                min="1"
-                max="365"
-                className="w-32"
-              />
-            </div>
-            <Button type="submit">
-              <Link2 className="mr-1.5 h-4 w-4" />
-              Generate Code
-            </Button>
-          </form>
+          <GenerateInviteForm />
         </CardContent>
       </Card>
 
@@ -81,6 +63,7 @@ export default async function AdminInvitePage() {
             <TableRow>
               <TableHead>Code</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Emailed To</TableHead>
               <TableHead>Expires</TableHead>
               <TableHead>Used By</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -107,6 +90,20 @@ export default async function AdminInvitePage() {
                       <Badge className="bg-green-500/10 text-green-700 hover:bg-green-500/20">
                         Active
                       </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {code.sent_to ? (
+                      <div className="min-w-0">
+                        <p className="truncate text-muted-foreground">{code.sent_to}</p>
+                        {!code.sent_at && (
+                          <Badge variant="outline" className="mt-0.5 text-[10px] text-amber-700">
+                            Not delivered
+                          </Badge>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">Link shared manually</span>
                     )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">

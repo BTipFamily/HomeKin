@@ -4,11 +4,20 @@ import { revalidatePath } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { sendEmail } from '@/lib/email'
 
+export type InvitationResult = {
+  created: number
+  emailed: number
+  /** Addresses the invitation row exists for but no email reached. */
+  notEmailed: string[]
+  /** Set when email is not configured at all, so the UI can say so once. */
+  emailNotConfigured: boolean
+}
+
 export async function sendInvitations(
   reunionId: string,
   memberIds: string[],
   subEventId: string | null = null
-) {
+): Promise<InvitationResult> {
   const supabase = await createClient()
   const {
     data: { user },
@@ -52,6 +61,11 @@ export async function sendInvitations(
 
   if (!members) throw new Error('Could not fetch members')
 
+  let created = 0
+  let emailed = 0
+  const notEmailed: string[] = []
+  let emailNotConfigured = false
+
   for (const m of members) {
     // Create invitation row
     const { data: invitation } = await serviceClient
@@ -66,6 +80,7 @@ export async function sendInvitations(
       .single()
 
     if (!invitation) continue
+    created++
 
     const rsvpUrl = `${appUrl}/api/rsvp/${invitation.token}`
     const subject = subEventName
@@ -79,8 +94,18 @@ export async function sendInvitations(
       <p style="color:#666;font-size:12px;">If the button doesn't work, copy this link: ${rsvpUrl}</p>
     `
 
-    await sendEmail({ to: m.email, subject, html })
+    const result = await sendEmail({ to: m.email, subject, html })
+    if (result.sent) {
+      emailed++
+    } else {
+      // The invitation row and its RSVP link are still valid, so keep them —
+      // the caller reports which addresses need the link sending by hand.
+      notEmailed.push(m.email)
+      if (result.reason === 'not_configured') emailNotConfigured = true
+    }
   }
 
   revalidatePath(`/reunion/${reunionId}/invitations`)
+
+  return { created, emailed, notEmailed, emailNotConfigured }
 }
