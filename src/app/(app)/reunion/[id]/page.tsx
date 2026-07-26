@@ -4,9 +4,10 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Pin, Plus, Trash2, Calendar, Camera, Users, MessageCircle, ClipboardList, DollarSign, ListChecks, Wallet } from 'lucide-react'
+import { Pin, Trash2, Calendar, Camera, Users, MessageCircle, ClipboardList, DollarSign, ListChecks, Wallet } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import { createAnnouncement, deleteAnnouncement } from '@/lib/actions/announcements'
+import { deleteAnnouncement } from '@/lib/actions/announcements'
+import { AnnouncementForm } from './announcement-form'
 
 interface ReunionPageProps {
   params: Promise<{ id: string }>
@@ -58,12 +59,13 @@ export default async function ReunionPage({ params }: ReunionPageProps) {
     .select('*', { count: 'exact', head: true })
     .eq('reunion_id', id)
 
-  const canManage = ['committee', 'admin'].includes(member.role)
+  // Announcements email the whole directory, so show the author how many people
+  // that is before they hit Post.
+  const { count: memberCount } = await supabase
+    .from('members')
+    .select('*', { count: 'exact', head: true })
 
-  async function handleCreateAnnouncement(formData: FormData) {
-    'use server'
-    await createAnnouncement(id, formData)
-  }
+  const canManage = ['committee', 'admin'].includes(member.role)
 
   async function handleDeleteAnnouncement(announcementId: string) {
     'use server'
@@ -138,32 +140,7 @@ export default async function ReunionPage({ params }: ReunionPageProps) {
       {canManage && (
         <Card className="mb-6">
           <CardContent className="pt-4">
-            <form action={handleCreateAnnouncement} className="space-y-3">
-              <p className="text-sm font-medium">Post an Announcement</p>
-              <input
-                name="title"
-                required
-                placeholder="Title"
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-              <textarea
-                name="body"
-                required
-                placeholder="Write your announcement..."
-                rows={3}
-                className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
-              />
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <input type="checkbox" name="pinned" className="rounded" />
-                  Pin to top
-                </label>
-                <Button type="submit" size="sm">
-                  <Plus className="mr-1.5 h-3.5 w-3.5" />
-                  Post
-                </Button>
-              </div>
-            </form>
+            <AnnouncementForm reunionId={id} memberCount={memberCount ?? 0} />
           </CardContent>
         </Card>
       )}

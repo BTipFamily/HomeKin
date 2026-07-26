@@ -73,3 +73,7 @@ psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/03_merge_mem
 echo "--- email normalization backfill"
 psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/04_email_normalization.sql" 2>&1 \
   | sed 's/^psql.*NOTICE:  /    /'
+
+echo "--- delete_member"
+psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/05_delete_member.sql" 2>&1 \
+  | sed 's/^psql.*NOTICE:  /    /'
