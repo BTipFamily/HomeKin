@@ -200,8 +200,21 @@ export default function ImportClient({ isAdmin }: { isAdmin: boolean }) {
                 person later claims their own profile when they sign up. Everything else is
                 optional. Dates such as <code className="font-mono">date_of_birth</code> can be
                 written <code className="font-mono">1975-06-14</code> or{' '}
-                <code className="font-mono">6/14/1975</code>, but always with a four-digit year.
+                <code className="font-mono">6/14/1975</code>, but always with a four-digit year.{' '}
+                <code className="font-mono">photo_url</code> must be a full{' '}
+                <code className="font-mono">https://</code> address.
               </p>
+              <div className="mt-2 rounded-lg border bg-muted/40 p-3">
+                <p className="text-xs font-medium text-foreground">Who can see what</p>
+                <p className="mt-1 text-xs">
+                  The four <code className="font-mono">visibility_*</code> columns control who
+                  sees each person&apos;s phone, address, email and date of birth. Each accepts{' '}
+                  <code className="font-mono">members</code> (anyone signed in),{' '}
+                  <code className="font-mono">committee</code> (committee and admins only) or{' '}
+                  <code className="font-mono">none</code>. Leave them blank and everyone gets the
+                  normal default, which is visible to signed-in family.
+                </p>
+              </div>
             </div>
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">
               <p className="flex items-center gap-1.5 font-medium">

@@ -224,6 +224,87 @@ describe('date_of_birth', () => {
   })
 })
 
+describe('photo_url', () => {
+  test('accepts an http(s) address', () => {
+    const result = plan(
+      csv({ name: 'A', email: 'a@x.com', photo_url: 'https://example.com/a.jpg' })
+    )
+    expect(result.errors).toEqual([])
+    expect(result.people[0].photoUrl).toBe('https://example.com/a.jpg')
+  })
+
+  test('is optional', () => {
+    expect(plan(csv({ name: 'A', email: 'a@x.com' })).people[0].photoUrl).toBeNull()
+  })
+
+  test('rejects a non-http scheme', () => {
+    // A javascript: or data: URL has no business in an <img src>.
+    for (const url of ['javascript:alert(1)', 'data:image/png;base64,AAAA', 'ftp://x/a.jpg']) {
+      const result = plan(csv({ name: 'A', email: 'a@x.com', photo_url: url }))
+      expect(result.errors.some((e) => e.column === 'photo_url')).toBe(true)
+    }
+  })
+
+  test('rejects something that is not a URL at all', () => {
+    const result = plan(csv({ name: 'A', email: 'a@x.com', photo_url: 'my photo.jpg' }))
+    expect(result.errors.some((e) => e.column === 'photo_url')).toBe(true)
+  })
+})
+
+describe('visibility columns', () => {
+  test('leaves settings untouched when the file says nothing', () => {
+    const result = plan(csv({ name: 'A', email: 'a@x.com' }))
+    // Null means "use the column default" rather than imposing one.
+    expect(result.people[0].visibilitySettings).toBeNull()
+  })
+
+  test('fills the unmentioned keys from the defaults', () => {
+    const result = plan(
+      csv({ name: 'A', email: 'a@x.com', visibility_date_of_birth: 'committee' })
+    )
+    expect(result.errors).toEqual([])
+    // Writing only date_of_birth would blank the other three, and a missing
+    // key reads as "nobody can see it".
+    expect(result.people[0].visibilitySettings).toEqual({
+      phone: 'members',
+      address: 'members',
+      email: 'members',
+      date_of_birth: 'committee',
+    })
+  })
+
+  test('accepts every setting at once', () => {
+    const result = plan(
+      csv({
+        name: 'A',
+        email: 'a@x.com',
+        visibility_phone: 'none',
+        visibility_address: 'committee',
+        visibility_email: 'members',
+        visibility_date_of_birth: 'none',
+      })
+    )
+    expect(result.errors).toEqual([])
+    expect(result.people[0].visibilitySettings).toEqual({
+      phone: 'none',
+      address: 'committee',
+      email: 'members',
+      date_of_birth: 'none',
+    })
+  })
+
+  test('is case-insensitive', () => {
+    const result = plan(csv({ name: 'A', email: 'a@x.com', visibility_phone: 'Committee' }))
+    expect(result.errors).toEqual([])
+    expect(result.people[0].visibilitySettings?.phone).toBe('committee')
+  })
+
+  test('rejects an unknown value', () => {
+    const result = plan(csv({ name: 'A', email: 'a@x.com', visibility_phone: 'everyone' }))
+    expect(result.errors.some((e) => e.column === 'visibility_phone')).toBe(true)
+  })
+})
+
 describe('role handling', () => {
   test('defaults to member', () => {
     expect(plan(csv({ name: 'Jane', email: 'j@x.com' })).people[0].role).toBe('member')

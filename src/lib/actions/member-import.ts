@@ -160,7 +160,11 @@ export async function commitMemberImport(formData: FormData): Promise<ImportResu
         gender: p.gender,
         bio: p.bio,
         role: p.role,
+        photo_url: p.photoUrl,
         social_links: p.socialLinks,
+        // Omitted entirely when the file said nothing, so the column default
+        // applies rather than every imported member being locked to one policy.
+        ...(p.visibilitySettings ? { visibility_settings: p.visibilitySettings } : {}),
         created_by_proxy: true,
       }))
     )

@@ -3,7 +3,13 @@
 
 import { toCsv } from '@/lib/csv'
 import { parseBirthDate, parseDateInput } from '@/lib/birthday'
-import type { Gender, ParentChildKind, PartnerStatus, Role } from '@/types/database'
+import type {
+  Gender,
+  ParentChildKind,
+  PartnerStatus,
+  Role,
+  VisibilitySettings,
+} from '@/types/database'
 
 export const MAX_IMPORT_ROWS = 500
 // Kept comfortably under serverActions.bodySizeLimit in next.config.ts so an
@@ -21,9 +27,16 @@ export const IMPORT_COLUMNS = [
   'gender',
   'bio',
   'role',
+  'photo_url',
   'facebook',
   'instagram',
   'linkedin',
+  // Who can see each sensitive field. Left blank, each falls back to the
+  // column default rather than being forced to a guess.
+  'visibility_phone',
+  'visibility_address',
+  'visibility_email',
+  'visibility_date_of_birth',
   'parent_1',
   'parent_2',
   'parent_kind',
@@ -45,6 +58,31 @@ const PARTNER_STATUSES: PartnerStatus[] = [
   'engaged',
 ]
 const ROLES: Role[] = ['member', 'committee', 'admin']
+type Visibility = NonNullable<VisibilitySettings['phone']>
+const VISIBILITIES: Visibility[] = ['members', 'committee', 'none']
+
+/** Import column -> the key it sets inside visibility_settings. */
+const VISIBILITY_COLUMNS = {
+  visibility_phone: 'phone',
+  visibility_address: 'address',
+  visibility_email: 'email',
+  visibility_date_of_birth: 'date_of_birth',
+} as const satisfies Record<string, keyof VisibilitySettings>
+
+/**
+ * Mirrors the column default in the members table.
+ *
+ * visibility_settings is a single jsonb value, so writing only the keys a file
+ * mentioned would drop the rest — and a missing key reads as "nobody can see
+ * it". Setting one column would therefore quietly hide three other fields, so
+ * anything specified is merged over this.
+ */
+export const DEFAULT_VISIBILITY: VisibilitySettings = {
+  phone: 'members',
+  address: 'members',
+  email: 'members',
+  date_of_birth: 'members',
+}
 
 /**
  * Sample rows shipped in the template: a two-generation family with a married
@@ -63,6 +101,9 @@ const TEMPLATE_EXAMPLE_ROWS: Partial<Record<ImportColumn, string>>[] = [
     gender: 'male',
     bio: 'Family patriarch.',
     role: 'member',
+    photo_url: 'https://example.com/photos/joe.jpg',
+    visibility_phone: 'members',
+    visibility_date_of_birth: 'committee',
     spouse: '2',
     spouse_status: 'married',
     spouse_start_date: '1975-06-14',
@@ -120,7 +161,14 @@ export type ParsedPerson = {
   gender: Gender | null
   bio: string | null
   role: Role
+  photoUrl: string | null
   socialLinks: { facebook: string | null; instagram: string | null; linkedin: string | null }
+  /**
+   * The complete settings to write, or null when the file mentioned none — in
+   * which case the row inherits the column default rather than having one
+   * imposed on it.
+   */
+  visibilitySettings: VisibilitySettings | null
   /** True when a member with this email already exists — the row is skipped. */
   alreadyExists: boolean
 }
@@ -167,6 +215,24 @@ function normalizeEmail(value: string): string {
 // Intentionally permissive: we only reject shapes that clearly aren't addresses,
 // since the DB has no format constraint and over-strict regexes reject valid mail.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * Photos are rendered with next/image against a remotePatterns allow-list, and
+ * a javascript: or data: URL in an href is worth refusing outright, so only
+ * http(s) is accepted.
+ */
+function parseUrl(value: string): { url: string } | { error: string } {
+  let parsed: URL
+  try {
+    parsed = new URL(value)
+  } catch {
+    return { error: `"${value}" is not a valid web address.` }
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { error: `"${value}" must start with http:// or https://.` }
+  }
+  return { url: parsed.toString() }
+}
 
 function mapHeader(headerRow: string[]): {
   index: Partial<Record<ImportColumn, number>>
@@ -330,6 +396,29 @@ export function buildImportPlan(
       role = 'member'
     }
 
+    const photoRaw = cell(raw, 'photo_url')
+    let photoUrl: string | null = null
+    if (photoRaw) {
+      const parsed = parseUrl(photoRaw)
+      if ('error' in parsed) fail(`Photo URL ${parsed.error}`, 'photo_url')
+      else photoUrl = parsed.url
+    }
+
+    // Only the keys the file set, so unspecified fields keep the DB default.
+    const visibilitySettings: Partial<VisibilitySettings> = {}
+    for (const [column, key] of Object.entries(VISIBILITY_COLUMNS)) {
+      const value = cell(raw, column as ImportColumn).toLowerCase()
+      if (!value) continue
+      if ((VISIBILITIES as string[]).includes(value)) {
+        visibilitySettings[key] = value as Visibility
+      } else {
+        fail(
+          `${column} must be one of ${VISIBILITIES.join(', ')} (got "${value}").`,
+          column as ImportColumn
+        )
+      }
+    }
+
     people.push({
       row: rowNum,
       externalId: externalId || null,
@@ -342,11 +431,16 @@ export function buildImportPlan(
       gender,
       bio: cell(raw, 'bio') || null,
       role,
+      photoUrl,
       socialLinks: {
         facebook: cell(raw, 'facebook') || null,
         instagram: cell(raw, 'instagram') || null,
         linkedin: cell(raw, 'linkedin') || null,
       },
+      visibilitySettings:
+        Object.keys(visibilitySettings).length > 0
+          ? { ...DEFAULT_VISIBILITY, ...visibilitySettings }
+          : null,
       alreadyExists: email ? existingByEmail.has(email) : false,
     })
   })
