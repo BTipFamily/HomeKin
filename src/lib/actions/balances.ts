@@ -2,12 +2,26 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import type { PaymentMethod } from '@/types/database'
 
-export async function reportManualPayment(
-  balanceId: string,
-  method: 'zelle' | 'cashapp' | 'check' | 'other',
-  reunionId: string
-) {
+const MANUAL_METHODS: PaymentMethod[] = ['zelle', 'cashapp', 'check', 'other']
+
+/**
+ * Nothing in here writes balances.amount_paid or balances.status — both are
+ * derived from the payments table by trigger. Recording a payment means
+ * inserting a row; correcting one means editing or deleting that row.
+ */
+
+function parseAmount(raw: unknown, label: string): number {
+  const amount = Number(raw)
+  if (!Number.isFinite(amount)) throw new Error(`${label} must be a number.`)
+  // Money in a numeric(10,2) column, so refuse anything that would silently round.
+  const rounded = Math.round(amount * 100) / 100
+  if (rounded === 0) throw new Error(`${label} cannot be zero.`)
+  return rounded
+}
+
+async function currentMember(): Promise<{ id: string; role: string }> {
   const supabase = await createClient()
   const {
     data: { user },
@@ -16,61 +30,170 @@ export async function reportManualPayment(
 
   const { data: member } = await supabase
     .from('members')
-    .select('id')
+    .select('id, role')
     .eq('auth_user_id', user.id)
     .single()
   if (!member) throw new Error('Member not found')
+  return member as { id: string; role: string }
+}
 
-  const serviceClient = createServiceClient()
-  const { data: balance } = await serviceClient
+function revalidateFor(reunionId: string, memberId?: string) {
+  revalidatePath(`/reunion/${reunionId}/budget`)
+  revalidatePath(`/reunion/${reunionId}/signups`)
+  revalidatePath(`/reunion/${reunionId}/report`)
+  if (memberId) revalidatePath(`/directory/${memberId}`)
+}
+
+/**
+ * A member telling the committee they have paid outside Stripe.
+ *
+ * Records a pending payment for a real amount rather than flipping the balance
+ * to 'pending_confirmation' with no figure attached, so a part payment can be
+ * reported honestly.
+ */
+export async function reportManualPayment(
+  balanceId: string,
+  method: PaymentMethod,
+  amount: number,
+  reunionId: string,
+  note?: string
+) {
+  const member = await currentMember()
+
+  if (!MANUAL_METHODS.includes(method)) {
+    throw new Error('Pick how the payment was made.')
+  }
+  const value = parseAmount(amount, 'The amount')
+  if (value < 0) throw new Error('Report the amount you paid, not a refund.')
+
+  const service = createServiceClient()
+  const { data: balance } = await service
     .from('balances')
-    .select('id, member_id, status')
+    .select('id, member_id, reunion_id, amount_owed, amount_paid')
     .eq('id', balanceId)
     .single()
 
   if (!balance || balance.member_id !== member.id) throw new Error('Balance not found')
-  if (balance.status === 'paid') throw new Error('Already paid')
 
-  const { error } = await serviceClient
-    .from('balances')
-    .update({ payment_method: method, status: 'pending_confirmation' })
-    .eq('id', balanceId)
+  const outstanding = Number(balance.amount_owed) - Number(balance.amount_paid)
+  if (outstanding <= 0) throw new Error('This balance is already settled.')
+  if (value > outstanding) {
+    throw new Error(
+      `That is more than the $${outstanding.toFixed(2)} outstanding. Ask the committee to record an overpayment.`
+    )
+  }
+
+  const { error } = await service.from('payments').insert({
+    balance_id: balanceId,
+    member_id: member.id,
+    reunion_id: balance.reunion_id,
+    amount: value,
+    method,
+    status: 'pending',
+    note: note?.trim() || null,
+    recorded_by: member.id,
+  })
 
   if (error) throw new Error(error.message)
-  revalidatePath(`/reunion/${reunionId}/signups`)
+  revalidateFor(reunionId, member.id)
 }
 
-export async function confirmManualPayment(balanceId: string, reunionId: string) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-
-  const { data: member } = await supabase
-    .from('members')
-    .select('role')
-    .eq('auth_user_id', user.id)
-    .single()
-  if (!member || !['committee', 'admin'].includes(member.role)) {
+/** Committee agreeing that a reported payment really arrived. */
+export async function confirmPayment(paymentId: string, reunionId: string) {
+  const member = await currentMember()
+  if (!['committee', 'admin'].includes(member.role)) {
     throw new Error('Committee access required')
   }
 
-  const serviceClient = createServiceClient()
-  const { data: balance } = await serviceClient
-    .from('balances')
-    .select('amount_owed')
-    .eq('id', balanceId)
+  const service = createServiceClient()
+  const { data: payment } = await service
+    .from('payments')
+    .select('id, member_id, status')
+    .eq('id', paymentId)
     .single()
+  if (!payment) throw new Error('Payment not found')
+  if (payment.status === 'confirmed') return
 
-  if (!balance) throw new Error('Balance not found')
-
-  const { error } = await serviceClient
-    .from('balances')
-    .update({ status: 'paid', amount_paid: balance.amount_owed })
-    .eq('id', balanceId)
+  const { error } = await service
+    .from('payments')
+    .update({ status: 'confirmed', recorded_by: member.id })
+    .eq('id', paymentId)
 
   if (error) throw new Error(error.message)
-  revalidatePath(`/reunion/${reunionId}/budget`)
-  revalidatePath(`/reunion/${reunionId}/signups`)
+  revalidateFor(reunionId, payment.member_id as string)
+}
+
+/**
+ * Committee recording a payment directly — cash handed over at an event, a
+ * cheque in the post, or a correcting refund (a negative amount).
+ */
+export async function recordPayment(input: {
+  balanceId: string
+  amount: number
+  method: PaymentMethod
+  paidAt?: string
+  note?: string
+  reunionId: string
+}) {
+  const member = await currentMember()
+  if (!['committee', 'admin'].includes(member.role)) {
+    throw new Error('Committee access required')
+  }
+
+  const value = parseAmount(input.amount, 'The amount')
+
+  const service = createServiceClient()
+  const { data: balance } = await service
+    .from('balances')
+    .select('id, member_id, reunion_id')
+    .eq('id', input.balanceId)
+    .single()
+  if (!balance) throw new Error('Balance not found')
+
+  const { error } = await service.from('payments').insert({
+    balance_id: balance.id,
+    member_id: balance.member_id,
+    reunion_id: balance.reunion_id,
+    amount: value,
+    method: input.method,
+    status: 'confirmed',
+    paid_at: input.paidAt ? new Date(input.paidAt).toISOString() : new Date().toISOString(),
+    note: input.note?.trim() || null,
+    recorded_by: member.id,
+  })
+
+  if (error) throw new Error(error.message)
+  revalidateFor(input.reunionId, balance.member_id as string)
+}
+
+/**
+ * Removes a payment recorded in error.
+ *
+ * Stripe payments are left alone: the money genuinely moved, and deleting the
+ * record would put the app out of step with Stripe. Refund those in Stripe and
+ * record the refund here as a negative amount instead.
+ */
+export async function deletePayment(paymentId: string, reunionId: string) {
+  const member = await currentMember()
+  if (!['committee', 'admin'].includes(member.role)) {
+    throw new Error('Committee access required')
+  }
+
+  const service = createServiceClient()
+  const { data: payment } = await service
+    .from('payments')
+    .select('id, member_id, method')
+    .eq('id', paymentId)
+    .single()
+  if (!payment) throw new Error('Payment not found')
+
+  if (payment.method === 'stripe') {
+    throw new Error(
+      'Stripe payments cannot be deleted, because the money really moved. Refund it in Stripe, then record the refund here as a negative amount.'
+    )
+  }
+
+  const { error } = await service.from('payments').delete().eq('id', paymentId)
+  if (error) throw new Error(error.message)
+  revalidateFor(reunionId, payment.member_id as string)
 }

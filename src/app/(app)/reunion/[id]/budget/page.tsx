@@ -2,18 +2,26 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
-import { ArrowLeft, TrendingUp, DollarSign, Users, AlertCircle } from 'lucide-react'
+import { ArrowLeft, TrendingUp, AlertCircle, Clock, FileText } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
-import { confirmManualPayment } from '@/lib/actions/balances'
+import { BalanceBadge } from '@/components/member-history-view'
+import type { Payment } from '@/types/database'
+import PaymentRow from './payment-row'
 
 interface BudgetPageProps {
   params: Promise<{ id: string }>
 }
 
-export default async function BudgetPage({ params }: BudgetPageProps) {
+/** Worst first — the order a treasurer actually works through. */
+const STATUS_ORDER: Record<string, number> = {
+  unpaid: 0,
+  partially_paid: 1,
+  pending_confirmation: 2,
+  paid: 3,
+}
+
+export default async function PaymentsPage({ params }: BudgetPageProps) {
   const { id } = await params
   const supabase = await createClient()
   const {
@@ -35,63 +43,93 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
     .single()
   if (!reunion) notFound()
 
-  // All balances for this reunion with member + event details
-  const { data: balances } = await supabase
+  const { data: balanceRows } = await supabase
     .from('balances')
-    .select('*, member:member_id(id, name, email), sub_event:sub_event_id(id, name, cost_per_person)')
+    .select('*, member:member_id(id, name, email), sub_event:sub_event_id(id, name)')
     .eq('reunion_id', id)
-    .order('status')
 
-  const allBalances = balances ?? []
+  const { data: paymentRows } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('reunion_id', id)
+    .order('paid_at', { ascending: false })
 
-  const totalOwed = allBalances.reduce((s, b) => s + b.amount_owed, 0)
-  const totalPaid = allBalances.reduce((s, b) => s + b.amount_paid, 0)
-  const stripePaid = allBalances
-    .filter((b) => b.payment_method === 'stripe')
-    .reduce((s, b) => s + b.amount_paid, 0)
+  type BalanceRow = {
+    id: string
+    amount_owed: number
+    amount_paid: number
+    status: string
+    member: { id: string; name: string; email: string } | null
+    sub_event: { id: string; name: string } | null
+  }
+
+  const balances = (balanceRows ?? []) as unknown as BalanceRow[]
+  const payments = (paymentRows ?? []) as unknown as Payment[]
+
+  const paymentsByBalance = new Map<string, Payment[]>()
+  for (const payment of payments) {
+    const list = paymentsByBalance.get(payment.balance_id) ?? []
+    list.push(payment)
+    paymentsByBalance.set(payment.balance_id, list)
+  }
+
+  const confirmed = payments.filter((p) => p.status === 'confirmed')
+  const pending = payments.filter((p) => p.status === 'pending')
+
+  const totalOwed = balances.reduce((s, b) => s + Number(b.amount_owed), 0)
+  const totalPaid = confirmed.reduce((s, p) => s + Number(p.amount), 0)
+  const stripePaid = confirmed
+    .filter((p) => p.method === 'stripe')
+    .reduce((s, p) => s + Number(p.amount), 0)
   const manualPaid = totalPaid - stripePaid
-  const outstanding = allBalances
-    .filter((b) => b.status !== 'paid')
-    .reduce((s, b) => s + (b.amount_owed - b.amount_paid), 0)
-  const pendingConfirmation = allBalances.filter((b) => b.status === 'pending_confirmation')
+  const outstanding = balances.reduce(
+    (s, b) => s + Math.max(Number(b.amount_owed) - Number(b.amount_paid), 0),
+    0
+  )
 
-  // Per-event totals
-  const { data: subEvents } = await supabase
-    .from('sub_events')
-    .select('id, name, cost_per_person, capacity')
-    .eq('reunion_id', id)
-
-  const eventBalanceTotals = (subEvents ?? []).map((evt) => {
-    const evtBalances = allBalances.filter((b) => b.sub_event_id === evt.id)
-    return {
-      ...evt,
-      totalOwed: evtBalances.reduce((s, b) => s + b.amount_owed, 0),
-      totalPaid: evtBalances.reduce((s, b) => s + b.amount_paid, 0),
-      unpaidCount: evtBalances.filter((b) => b.status === 'unpaid').length,
-    }
-  }).filter((e) => e.totalOwed > 0)
+  // Worst-off first, then largest debt, so the top of the list is the work.
+  const sorted = [...balances].sort(
+    (a, b) =>
+      (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9) ||
+      Number(b.amount_owed) - Number(b.amount_paid) - (Number(a.amount_owed) - Number(a.amount_paid)) ||
+      (a.member?.name ?? '').localeCompare(b.member?.name ?? '')
+  )
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <Button variant="ghost" size="sm" asChild className="mb-4 -ml-2">
-        <Link href={`/reunion/${id}/signups`}>
+        <Link href={`/reunion/${id}`}>
           <ArrowLeft className="mr-1.5 h-4 w-4" />
-          Signups
+          {reunion.name}
         </Link>
       </Button>
 
-      <h1 className="mb-6 text-2xl font-bold">{reunion.name} — Budget</h1>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          {/* "Payments", not "Budget" — the Budget Estimator is a different,
+              unrelated planning tool and sharing the word confused both. */}
+          <h1 className="text-2xl font-bold">Payments</h1>
+          <p className="text-sm text-muted-foreground">
+            What everyone owes and what has actually come in.
+          </p>
+        </div>
+        <Button asChild variant="outline">
+          <Link href={`/reunion/${id}/report`}>
+            <FileText className="mr-1.5 h-4 w-4" />
+            Full Report
+          </Link>
+        </Button>
+      </div>
 
-      {/* Summary stats */}
       <div className="mb-8 grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total Collected</p>
+                <p className="text-sm text-muted-foreground">Collected</p>
                 <p className="text-2xl font-bold text-green-600">{formatCurrency(totalPaid)}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Stripe: {formatCurrency(stripePaid)} · Manual: {formatCurrency(manualPaid)}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Stripe {formatCurrency(stripePaid)} · Manual {formatCurrency(manualPaid)}
                 </p>
               </div>
               <TrendingUp className="h-8 w-8 text-green-500 opacity-60" />
@@ -105,7 +143,9 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
               <div>
                 <p className="text-sm text-muted-foreground">Outstanding</p>
                 <p className="text-2xl font-bold text-amber-600">{formatCurrency(outstanding)}</p>
-                <p className="text-xs text-muted-foreground mt-1">of {formatCurrency(totalOwed)} total owed</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  of {formatCurrency(totalOwed)} expected
+                </p>
               </div>
               <AlertCircle className="h-8 w-8 text-amber-500 opacity-60" />
             </div>
@@ -116,134 +156,122 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Pending Confirm</p>
-                <p className="text-2xl font-bold">{pendingConfirmation.length}</p>
-                <p className="text-xs text-muted-foreground mt-1">manual payments to review</p>
+                <p className="text-sm text-muted-foreground">Awaiting Confirmation</p>
+                <p className="text-2xl font-bold">{pending.length}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {formatCurrency(pending.reduce((s, p) => s + Number(p.amount), 0))} reported
+                </p>
               </div>
-              <Users className="h-8 w-8 text-muted-foreground opacity-40" />
+              <Clock className="h-8 w-8 text-muted-foreground opacity-40" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Pending confirmations */}
-      {pendingConfirmation.length > 0 && (
+      {pending.length > 0 && (
         <Card className="mb-8 border-amber-200">
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-500" />
-              Payments Pending Confirmation
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Clock className="h-4 w-4 text-amber-500" />
+              Reported payments to confirm
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="divide-y">
-              {pendingConfirmation.map((b) => {
-                const m = (b as any).member
-                const evt = (b as any).sub_event
-                return (
-                  <div key={b.id} className="flex items-center justify-between gap-3 py-3">
-                    <div>
-                      <p className="text-sm font-medium">{m?.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {evt?.name ?? 'General Fund'} · {b.payment_method} ·{' '}
-                        {formatCurrency(b.amount_owed)}
-                      </p>
-                    </div>
-                    <form
-                      action={async () => {
-                        'use server'
-                        await confirmManualPayment(b.id, id)
-                      }}
-                    >
-                      <Button type="submit" size="sm" variant="outline">
-                        Confirm Paid
-                      </Button>
-                    </form>
-                  </div>
-                )
-              })}
-            </div>
+          <CardContent className="divide-y p-0">
+            {pending.map((payment) => {
+              const balance = balances.find((b) => b.id === payment.balance_id)
+              return (
+                <PaymentRow
+                  key={payment.id}
+                  payment={payment}
+                  reunionId={id}
+                  memberName={balance?.member?.name ?? 'Unknown member'}
+                  eventName={balance?.sub_event?.name ?? 'General Fund'}
+                />
+              )
+            })}
           </CardContent>
         </Card>
       )}
 
-      {/* Per-event breakdown */}
-      {eventBalanceTotals.length > 0 && (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="text-base">Per-Event Summary</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="divide-y">
-              {eventBalanceTotals.map((evt) => (
-                <div key={evt.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-                  <div>
-                    <p className="font-medium">{evt.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {evt.unpaidCount} outstanding
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium text-green-600">{formatCurrency(evt.totalPaid)} paid</p>
-                    <p className="text-xs text-muted-foreground">of {formatCurrency(evt.totalOwed)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* All balances by member */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">All Outstanding Balances</CardTitle>
+          <CardTitle className="text-base">
+            All balances{' '}
+            <span className="font-normal text-muted-foreground">({balances.length})</span>
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          {allBalances.filter((b) => b.status !== 'paid').length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">
-              All balances are paid.
+        <CardContent className="p-0">
+          {balances.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Nobody has been charged for anything yet.
             </p>
           ) : (
             <div className="divide-y">
-              {allBalances
-                .filter((b) => b.status !== 'paid')
-                .map((b) => {
-                  const m = (b as any).member
-                  const evt = (b as any).sub_event
-                  return (
-                    <div key={b.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-                      <div>
-                        <p className="font-medium">{m?.name}</p>
-                        <p className="text-xs text-muted-foreground">{evt?.name ?? 'General Fund'}</p>
-                        {m?.email && <p className="text-xs text-muted-foreground">{m.email}</p>}
+              {/* Settled balances stay listed rather than being filtered out —
+                  hiding them made paid history invisible. */}
+              {sorted.map((balance) => {
+                const balancePayments = paymentsByBalance.get(balance.id) ?? []
+                const due = Number(balance.amount_owed) - Number(balance.amount_paid)
+                return (
+                  <div key={balance.id} className="px-4 py-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <Link
+                          href={`/directory/${balance.member?.id}`}
+                          className="text-sm font-medium hover:underline"
+                        >
+                          {balance.member?.name ?? 'Unknown member'}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">
+                          {balance.sub_event?.name ?? 'General Fund'}
+                          {balance.member?.email ? ` · ${balance.member.email}` : ''}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span>{formatCurrency(b.amount_owed)}</span>
-                        <StatusBadge status={b.status} />
+                      <div className="text-right">
+                        <p className="text-sm">
+                          <span className="font-medium text-green-600">
+                            {formatCurrency(Number(balance.amount_paid))}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {' '}
+                            of {formatCurrency(Number(balance.amount_owed))}
+                          </span>
+                        </p>
+                        <div className="mt-0.5 flex items-center justify-end gap-2">
+                          {due > 0 && (
+                            <span className="text-xs font-medium text-amber-600">
+                              {formatCurrency(due)} due
+                            </span>
+                          )}
+                          <BalanceBadge status={balance.status} />
+                        </div>
                       </div>
                     </div>
-                  )
-                })}
+
+                    {balancePayments.length > 0 && (
+                      <ul className="mt-2 space-y-1 border-t pt-2 text-xs text-muted-foreground">
+                        {balancePayments.map((payment) => (
+                          <li key={payment.id} className="flex items-center justify-between gap-2">
+                            <span>
+                              {payment.paid_at.slice(0, 10)} · {payment.method}
+                              {payment.status === 'pending' ? ' · awaiting confirmation' : ''}
+                              {payment.note ? ` · ${payment.note}` : ''}
+                            </span>
+                            <span className={payment.amount < 0 ? 'text-destructive' : ''}>
+                              {payment.amount < 0 ? '−' : ''}
+                              {formatCurrency(Math.abs(Number(payment.amount)))}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </CardContent>
       </Card>
     </div>
-  )
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; className: string }> = {
-    unpaid: { label: 'Unpaid', className: 'border-red-200 text-red-700 bg-red-50' },
-    pending_confirmation: { label: 'Pending', className: 'border-amber-200 text-amber-700 bg-amber-50' },
-    partially_paid: { label: 'Partial', className: 'border-blue-200 text-blue-700 bg-blue-50' },
-    paid: { label: 'Paid', className: 'border-green-200 text-green-700 bg-green-50' },
-  }
-  const config = map[status] ?? { label: status, className: '' }
-  return (
-    <Badge variant="outline" className={`text-xs ${config.className}`}>
-      {config.label}
-    </Badge>
   )
 }
