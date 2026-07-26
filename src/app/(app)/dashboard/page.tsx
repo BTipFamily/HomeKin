@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Calendar, Users, Camera, Megaphone, Plus, ArrowRight } from 'lucide-react'
+import { Calendar, Users, Camera, Megaphone, Plus, ArrowRight, Settings } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
 interface DashboardPageProps {
@@ -153,6 +153,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                         <Camera className="h-4 w-4" />
                       </Link>
                     </Button>
+                    {canManage && (
+                      <Button asChild variant="ghost" size="sm" title="Manage this reunion">
+                        <Link href={`/reunion/${reunion.id}/manage`}>
+                          <Settings className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
