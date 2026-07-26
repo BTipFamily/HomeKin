@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, FileSpreadsheet, Merge } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 import { updateMemberRole } from '@/lib/actions/members'
 import { createProxyMember } from '@/lib/actions/members'
@@ -44,7 +44,23 @@ export default async function AdminMembersPage() {
         </Link>
       </Button>
 
-      <h1 className="mb-6 text-2xl font-bold">Manage Members</h1>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Manage Members</h1>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/directory/import">
+              <FileSpreadsheet className="mr-1.5 h-4 w-4" />
+              Import from Spreadsheet
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/admin/members/merge">
+              <Merge className="mr-1.5 h-4 w-4" />
+              Merge Duplicates
+            </Link>
+          </Button>
+        </div>
+      </div>
 
       {/* Add proxy member */}
       <Card className="mb-8">
