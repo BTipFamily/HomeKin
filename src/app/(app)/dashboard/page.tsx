@@ -7,7 +7,12 @@ import { Badge } from '@/components/ui/badge'
 import { Calendar, Users, Camera, Megaphone, Plus, ArrowRight } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
-export default async function DashboardPage() {
+interface DashboardPageProps {
+  searchParams: Promise<{ deleted?: string; warning?: string }>
+}
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+  const { deleted, warning } = await searchParams
   const supabase = await createClient()
   const {
     data: { user },
@@ -36,6 +41,20 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      {/* Confirmation for a reunion deleted from its (now gone) manage page. */}
+      {deleted && (
+        <div
+          className={`mb-6 rounded-lg border p-4 text-sm ${
+            warning
+              ? 'border-amber-200 bg-amber-50 text-amber-900'
+              : 'border-green-200 bg-green-50 text-green-900'
+          }`}
+        >
+          <p className="font-medium">&ldquo;{deleted}&rdquo; has been deleted.</p>
+          {warning && <p className="mt-1">{warning}</p>}
+        </div>
+      )}
+
       {/* Welcome header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold">Welcome back, {member.name.split(' ')[0]}!</h1>
