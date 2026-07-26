@@ -35,5 +35,12 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
-  return Response.json({ messages: data ?? [] })
+  // Piggy-backed on the poll the chat already makes, rather than a second timer
+  // firing on its own schedule.
+  const { data: roster } = await supabase
+    .from('members')
+    .select('id, name, photo_url, last_seen_at')
+    .order('name')
+
+  return Response.json({ messages: data ?? [], roster: roster ?? [] })
 }

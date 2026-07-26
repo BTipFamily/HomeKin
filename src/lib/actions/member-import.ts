@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { parseCsv } from '@/lib/csv'
+import { looksLikeLegacyXls, looksLikeZip, parseXlsx, XlsxError } from '@/lib/xlsx'
 import {
   buildImportPlan,
   MAX_IMPORT_BYTES,
@@ -49,23 +50,66 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 /**
- * Parses + validates the CSV against the current directory without writing
- * anything. Powers the preview screen.
+ * Reads the uploaded file into a grid, picking the parser by content rather
+ * than by extension — a ".csv" that is really a workbook (a very easy mistake
+ * to make in Excel's Save As dialog) still imports correctly.
  */
-export async function previewMemberImport(csvText: string): Promise<ImportPlan> {
-  const importer = await requireImporter()
-
-  if (csvText.length > MAX_IMPORT_BYTES) {
+async function readUpload(formData: FormData): Promise<string[][]> {
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error('No file was uploaded. Please choose a file and try again.')
+  }
+  if (file.size > MAX_IMPORT_BYTES) {
     throw new Error(
-      `That file is too large (limit ${Math.round(MAX_IMPORT_BYTES / 1000)} KB). Please split it into smaller files.`
+      `That file is too large (limit ${Math.round(MAX_IMPORT_BYTES / 1_000_000)} MB). Please split it into smaller files.`
     )
   }
+
+  const bytes = new Uint8Array(await file.arrayBuffer())
+
+  if (looksLikeLegacyXls(bytes)) {
+    throw new Error(
+      'That is an old-style .xls workbook, which we cannot read. Open it in Excel and use File → Save As to save it as .xlsx or .csv, then upload that.'
+    )
+  }
+
+  if (looksLikeZip(bytes)) {
+    try {
+      return parseXlsx(bytes)
+    } catch (e) {
+      if (e instanceof XlsxError) throw new Error(e.message)
+      throw new Error('We could not read that spreadsheet. Try saving it as CSV and uploading again.')
+    }
+  }
+
+  const text = new TextDecoder('utf-8').decode(bytes)
+  // A binary file that is neither ZIP nor OLE2 (a .numbers bundle, a PDF)
+  // decodes to mojibake rather than throwing, so catch it here instead of
+  // showing a baffling "missing name column" error further down. Real text can
+  // carry the odd replacement character, so require a run of them.
+  const REPLACEMENT_CHAR = '\uFFFD'
+  if (text.split(REPLACEMENT_CHAR).length - 1 > 8) {
+    throw new Error(
+      'That file is not a spreadsheet we can read. Please upload a .xlsx or .csv file.'
+    )
+  }
+
+  return parseCsv(text)
+}
+
+/**
+ * Parses + validates the upload against the current directory without writing
+ * anything. Powers the preview screen.
+ */
+export async function previewMemberImport(formData: FormData): Promise<ImportPlan> {
+  const importer = await requireImporter()
+  const grid = await readUpload(formData)
 
   const supabase = await createClient()
   const { data: existing, error } = await supabase.from('members').select('id, email')
   if (error) throw new Error(error.message)
 
-  return buildImportPlan(parseCsv(csvText), existing ?? [], {
+  return buildImportPlan(grid, existing ?? [], {
     importerIsAdmin: importer.isAdmin,
   })
 }
@@ -74,14 +118,9 @@ export async function previewMemberImport(csvText: string): Promise<ImportPlan> 
  * Re-validates server-side (never trusting a client-supplied plan), then
  * creates the new members and their parent/partner relationships.
  */
-export async function commitMemberImport(csvText: string): Promise<ImportResult> {
+export async function commitMemberImport(formData: FormData): Promise<ImportResult> {
   const importer = await requireImporter()
-
-  if (csvText.length > MAX_IMPORT_BYTES) {
-    throw new Error(
-      `That file is too large (limit ${Math.round(MAX_IMPORT_BYTES / 1000)} KB). Please split it into smaller files.`
-    )
-  }
+  const grid = await readUpload(formData)
 
   const supabase = await createClient()
   const { data: existingMembers, error: existingError } = await supabase
@@ -89,7 +128,7 @@ export async function commitMemberImport(csvText: string): Promise<ImportResult>
     .select('id, email')
   if (existingError) throw new Error(existingError.message)
 
-  const plan = buildImportPlan(parseCsv(csvText), existingMembers ?? [], {
+  const plan = buildImportPlan(grid, existingMembers ?? [], {
     importerIsAdmin: importer.isAdmin,
   })
 
@@ -117,10 +156,15 @@ export async function commitMemberImport(csvText: string): Promise<ImportResult>
         // picks it up via the geocoded_address comparison in updateMemberProfile.
         address: p.address,
         family_branch: p.familyBranch,
+        date_of_birth: p.dateOfBirth,
         gender: p.gender,
         bio: p.bio,
         role: p.role,
+        photo_url: p.photoUrl,
         social_links: p.socialLinks,
+        // Omitted entirely when the file said nothing, so the column default
+        // applies rather than every imported member being locked to one policy.
+        ...(p.visibilitySettings ? { visibility_settings: p.visibilitySettings } : {}),
         created_by_proxy: true,
       }))
     )

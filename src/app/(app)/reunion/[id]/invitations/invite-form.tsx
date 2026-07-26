@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
-import { sendInvitations } from '@/lib/actions/invitations'
+import { sendInvitations, type InvitationResult } from '@/lib/actions/invitations'
 import { Send } from 'lucide-react'
 
 interface Member { id: string; name: string; email: string }
@@ -18,7 +18,7 @@ export default function InviteForm({ reunionId, members, subEvents }: InviteForm
   const [isPending, startTransition] = useTransition()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [subEventId, setSubEventId] = useState<string>('')
-  const [success, setSuccess] = useState(false)
+  const [result, setResult] = useState<InvitationResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   function toggleAll() {
@@ -42,8 +42,7 @@ export default function InviteForm({ reunionId, members, subEvents }: InviteForm
     setError(null)
     startTransition(async () => {
       try {
-        await sendInvitations(reunionId, [...selected], subEventId || null)
-        setSuccess(true)
+        setResult(await sendInvitations(reunionId, [...selected], subEventId || null))
         setSelected(new Set())
       } catch (e: any) {
         setError(e.message)
@@ -53,9 +52,25 @@ export default function InviteForm({ reunionId, members, subEvents }: InviteForm
 
   return (
     <div className="space-y-4">
-      {success && (
-        <div className="rounded-md bg-green-500/10 px-3 py-2 text-sm text-green-700">
-          Invitations sent!
+      {result && (
+        <div
+          className={`rounded-md px-3 py-2 text-sm ${
+            result.notEmailed.length > 0
+              ? 'bg-amber-500/10 text-amber-800'
+              : 'bg-green-500/10 text-green-700'
+          }`}
+        >
+          <p>
+            {result.emailed} of {result.created} invitation
+            {result.created === 1 ? '' : 's'} emailed.
+          </p>
+          {result.notEmailed.length > 0 && (
+            <p className="mt-1">
+              {result.emailNotConfigured
+                ? 'Email is not set up yet, so nothing was delivered. The invitations exist — send the RSVP links by hand, or set RESEND_API_KEY.'
+                : `Could not reach: ${result.notEmailed.join(', ')}.`}
+            </p>
+          )}
         </div>
       )}
 

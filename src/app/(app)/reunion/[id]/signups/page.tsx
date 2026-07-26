@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { ArrowLeft, Calendar, DollarSign, Users, CheckCircle, Clock, AlertCircle } from 'lucide-react'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
-import { confirmManualPayment } from '@/lib/actions/balances'
 import PayButton from './pay-button'
 import ManualPayForm from './manual-pay-form'
 
@@ -163,21 +162,32 @@ export default async function SignupsPage({ params, searchParams }: SignupsPageP
                         <span className="text-sm font-medium">Payment</span>
                         <BalanceStatusBadge status={balance.status} />
                       </div>
-                      {balance.status === 'unpaid' && (
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        Paid {formatCurrency(balance.amount_paid)} of{' '}
+                        {formatCurrency(balance.amount_owed)}
+                        {balance.amount_owed - balance.amount_paid > 0 && (
+                          <>
+                            {' '}
+                            &middot;{' '}
+                            <span className="font-medium text-foreground">
+                              {formatCurrency(balance.amount_owed - balance.amount_paid)} still due
+                            </span>
+                          </>
+                        )}
+                      </p>
+                      {balance.amount_owed - balance.amount_paid > 0 && (
                         <div className="space-y-2">
                           <PayButton balanceId={balance.id} reunionId={id} />
-                          <ManualPayForm balanceId={balance.id} reunionId={id} />
+                          <ManualPayForm
+                            balanceId={balance.id}
+                            reunionId={id}
+                            outstanding={balance.amount_owed - balance.amount_paid}
+                          />
                         </div>
                       )}
                       {balance.status === 'pending_confirmation' && (
                         <p className="text-xs text-muted-foreground">
-                          Awaiting committee confirmation of your{' '}
-                          {balance.payment_method} payment.
-                        </p>
-                      )}
-                      {balance.status === 'paid' && (
-                        <p className="text-xs text-muted-foreground">
-                          Paid {formatCurrency(balance.amount_paid)} via {balance.payment_method}.
+                          A payment you reported is waiting for the committee to confirm it.
                         </p>
                       )}
                     </div>
@@ -207,9 +217,9 @@ export default async function SignupsPage({ params, searchParams }: SignupsPageP
                     {formatCurrency(estimatedTotal)}
                   </span>
                 </div>
-                {balances && balances.some((b) => b.status === 'paid') && (
+                {balances && balances.length > 0 && (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Paid: {formatCurrency(balances.reduce((s, b) => s + b.amount_paid, 0))}
+                    Paid so far: {formatCurrency(balances.reduce((s, b) => s + b.amount_paid, 0))}
                   </p>
                 )}
               </CardContent>
@@ -223,9 +233,14 @@ export default async function SignupsPage({ params, searchParams }: SignupsPageP
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">All Balances (Committee)</h2>
-            <Button asChild size="sm" variant="outline">
-              <Link href={`/reunion/${id}/budget`}>Budget Dashboard</Link>
-            </Button>
+            <div className="flex gap-2">
+              <Button asChild size="sm" variant="outline">
+                <Link href={`/reunion/${id}/budget`}>Payments</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link href={`/reunion/${id}/report`}>Report</Link>
+              </Button>
+            </div>
           </div>
           <Card>
             <CardContent className="pt-4">
@@ -243,16 +258,11 @@ export default async function SignupsPage({ params, searchParams }: SignupsPageP
                         <span className="text-sm">{formatCurrency(b.amount_owed)}</span>
                         <BalanceStatusBadge status={b.status} />
                         {b.status === 'pending_confirmation' && (
-                          <form
-                            action={async () => {
-                              'use server'
-                              await confirmManualPayment(b.id, id)
-                            }}
-                          >
-                            <Button type="submit" size="sm" variant="outline" className="h-7 text-xs">
-                              Confirm
-                            </Button>
-                          </form>
+                          <Button asChild size="sm" variant="outline" className="h-7 text-xs">
+                            {/* Confirming is now per payment, not per balance,
+                                so it happens where the payments are listed. */}
+                            <Link href={`/reunion/${id}/budget`}>Review</Link>
+                          </Button>
                         )}
                       </div>
                     </div>

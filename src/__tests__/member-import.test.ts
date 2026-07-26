@@ -1,4 +1,5 @@
 import { parseCsv } from '@/lib/csv'
+import { parseXlsx } from '@/lib/xlsx'
 import {
   buildImportPlan,
   IMPORT_COLUMNS,
@@ -6,6 +7,7 @@ import {
   TEMPLATE_CSV,
   type ExistingMember,
 } from '@/lib/member-import'
+import { buildXlsxFromGrid } from './helpers/xlsx-fixture'
 
 const HEADER = IMPORT_COLUMNS.join(',')
 
@@ -35,6 +37,42 @@ describe('template', () => {
     // Joe and Rose list each other — that must collapse to a single row.
     expect(partners).toHaveLength(1)
     expect(parents).toHaveLength(2)
+  })
+})
+
+describe('xlsx round trip', () => {
+  // The path a real user takes: download the template, open it in Excel, save
+  // it back out as .xlsx, upload that.
+  const asWorkbook = (grid: string[][]) => parseXlsx(buildXlsxFromGrid(grid))
+
+  test('the template survives a trip through a workbook', () => {
+    const viaXlsx = plan(asWorkbook(parseCsv(TEMPLATE_CSV)))
+    expect(viaXlsx.errors).toEqual([])
+    expect(viaXlsx.summary.toCreate).toBe(3)
+    expect(viaXlsx.people.map((p) => p.dateOfBirth)).toEqual([
+      '1950-03-02',
+      '1952-11-19',
+      '1980-07-30',
+    ])
+  })
+
+  test('produces the same plan as the equivalent CSV', () => {
+    const grid = parseCsv(TEMPLATE_CSV)
+    expect(plan(asWorkbook(grid))).toEqual(plan(grid))
+  })
+
+  test('a workbook whose header row has stray spacing still maps', () => {
+    const grid = asWorkbook([
+      ['Name', ' Email ', 'Date Of Birth'],
+      ['Jane Smith', 'jane@example.com', '1975-06-14'],
+    ])
+    const result = plan(grid)
+    expect(result.errors).toEqual([])
+    expect(result.people[0]).toMatchObject({
+      name: 'Jane Smith',
+      email: 'jane@example.com',
+      dateOfBirth: '1975-06-14',
+    })
   })
 })
 
@@ -138,6 +176,132 @@ describe('person validation', () => {
     expect(result.people[0].phone).toBeNull()
     expect(result.people[0].address).toBeNull()
     expect(result.people[0].bio).toBeNull()
+  })
+})
+
+describe('date_of_birth', () => {
+  test('normalizes accepted formats to ISO', () => {
+    const result = plan(
+      csv(
+        { name: 'A', email: 'a@x.com', date_of_birth: '1975-06-14' },
+        { name: 'B', email: 'b@x.com', date_of_birth: '6/14/1975' },
+        { name: 'C', email: 'c@x.com', date_of_birth: '1975/6/4' }
+      )
+    )
+    expect(result.errors).toEqual([])
+    expect(result.people.map((p) => p.dateOfBirth)).toEqual([
+      '1975-06-14',
+      '1975-06-14',
+      '1975-06-04',
+    ])
+  })
+
+  test('is optional', () => {
+    const result = plan(csv({ name: 'A', email: 'a@x.com' }))
+    expect(result.errors).toEqual([])
+    expect(result.people[0].dateOfBirth).toBeNull()
+  })
+
+  test('rejects a two-digit year rather than guessing the century', () => {
+    const result = plan(csv({ name: 'A', email: 'a@x.com', date_of_birth: '6/14/75' }))
+    expect(result.errors.some((e) => e.column === 'date_of_birth')).toBe(true)
+  })
+
+  test('rejects a future date and an impossible date', () => {
+    const result = plan(
+      csv(
+        { name: 'A', email: 'a@x.com', date_of_birth: '2999-01-01' },
+        { name: 'B', email: 'b@x.com', date_of_birth: '1975-02-30' }
+      )
+    )
+    expect(result.errors.filter((e) => e.column === 'date_of_birth')).toHaveLength(2)
+  })
+
+  test('a bad birth date does not silently drop the row from the plan', () => {
+    const result = plan(csv({ name: 'A', email: 'a@x.com', date_of_birth: 'nope' }))
+    expect(result.people).toHaveLength(1)
+    expect(result.people[0].dateOfBirth).toBeNull()
+  })
+})
+
+describe('photo_url', () => {
+  test('accepts an http(s) address', () => {
+    const result = plan(
+      csv({ name: 'A', email: 'a@x.com', photo_url: 'https://example.com/a.jpg' })
+    )
+    expect(result.errors).toEqual([])
+    expect(result.people[0].photoUrl).toBe('https://example.com/a.jpg')
+  })
+
+  test('is optional', () => {
+    expect(plan(csv({ name: 'A', email: 'a@x.com' })).people[0].photoUrl).toBeNull()
+  })
+
+  test('rejects a non-http scheme', () => {
+    // A javascript: or data: URL has no business in an <img src>.
+    for (const url of ['javascript:alert(1)', 'data:image/png;base64,AAAA', 'ftp://x/a.jpg']) {
+      const result = plan(csv({ name: 'A', email: 'a@x.com', photo_url: url }))
+      expect(result.errors.some((e) => e.column === 'photo_url')).toBe(true)
+    }
+  })
+
+  test('rejects something that is not a URL at all', () => {
+    const result = plan(csv({ name: 'A', email: 'a@x.com', photo_url: 'my photo.jpg' }))
+    expect(result.errors.some((e) => e.column === 'photo_url')).toBe(true)
+  })
+})
+
+describe('visibility columns', () => {
+  test('leaves settings untouched when the file says nothing', () => {
+    const result = plan(csv({ name: 'A', email: 'a@x.com' }))
+    // Null means "use the column default" rather than imposing one.
+    expect(result.people[0].visibilitySettings).toBeNull()
+  })
+
+  test('fills the unmentioned keys from the defaults', () => {
+    const result = plan(
+      csv({ name: 'A', email: 'a@x.com', visibility_date_of_birth: 'committee' })
+    )
+    expect(result.errors).toEqual([])
+    // Writing only date_of_birth would blank the other three, and a missing
+    // key reads as "nobody can see it".
+    expect(result.people[0].visibilitySettings).toEqual({
+      phone: 'members',
+      address: 'members',
+      email: 'members',
+      date_of_birth: 'committee',
+    })
+  })
+
+  test('accepts every setting at once', () => {
+    const result = plan(
+      csv({
+        name: 'A',
+        email: 'a@x.com',
+        visibility_phone: 'none',
+        visibility_address: 'committee',
+        visibility_email: 'members',
+        visibility_date_of_birth: 'none',
+      })
+    )
+    expect(result.errors).toEqual([])
+    expect(result.people[0].visibilitySettings).toEqual({
+      phone: 'none',
+      address: 'committee',
+      email: 'members',
+      date_of_birth: 'none',
+    })
+  })
+
+  test('is case-insensitive', () => {
+    const result = plan(csv({ name: 'A', email: 'a@x.com', visibility_phone: 'Committee' }))
+    expect(result.errors).toEqual([])
+    expect(result.people[0].visibilitySettings?.phone).toBe('committee')
+  })
+
+  test('rejects an unknown value', () => {
+    const result = plan(csv({ name: 'A', email: 'a@x.com', visibility_phone: 'everyone' }))
+    expect(result.errors.some((e) => e.column === 'visibility_phone')).toBe(true)
   })
 })
 
@@ -314,14 +478,35 @@ describe('partner relationships', () => {
     expect(result.relationships).toEqual([])
   })
 
-  test('rejects a badly formatted date', () => {
+  test('accepts the US date format Excel writes into CSV exports', () => {
     const result = plan(
       csv(
         { external_id: '1', name: 'A', email: 'a@x.com' },
         { name: 'B', email: 'b@x.com', spouse: '1', spouse_start_date: '06/14/1975' }
       )
     )
+    expect(result.errors).toEqual([])
+    expect(result.relationships[0]).toMatchObject({ startDate: '1975-06-14' })
+  })
+
+  test('rejects a badly formatted date', () => {
+    const result = plan(
+      csv(
+        { external_id: '1', name: 'A', email: 'a@x.com' },
+        { name: 'B', email: 'b@x.com', spouse: '1', spouse_start_date: 'summer of 75' }
+      )
+    )
     expect(result.errors.some((e) => e.column === 'spouse_start_date')).toBe(true)
+  })
+
+  test('rejects an impossible date', () => {
+    const result = plan(
+      csv(
+        { external_id: '1', name: 'A', email: 'a@x.com' },
+        { name: 'B', email: 'b@x.com', spouse: '1', spouse_end_date: '2001-02-30' }
+      )
+    )
+    expect(result.errors.some((e) => e.column === 'spouse_end_date')).toBe(true)
   })
 
   test('rejects marrying yourself', () => {

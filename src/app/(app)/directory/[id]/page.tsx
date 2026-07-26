@@ -8,8 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { getInitials } from '@/lib/utils'
 import { canViewField } from '@/lib/visibility'
+import { calculateAge, formatBirthday } from '@/lib/birthday'
+import { summarizeHistory } from '@/lib/member-history'
+import { getMemberHistory } from '@/lib/actions/member-history'
+import { MemberHistoryView } from '@/components/member-history-view'
 import {
   ArrowLeft,
+  Cake,
   Edit,
   Mail,
   Phone,
@@ -53,6 +58,18 @@ export default async function MemberProfilePage({ params }: ProfilePageProps) {
   const showPhone = canViewField(member.visibility_settings, 'phone', myRole)
   const showEmail = canViewField(member.visibility_settings, 'email', myRole)
   const showAddress = canViewField(member.visibility_settings, 'address', myRole)
+  // Your own birth date is always visible to you, whatever the setting says.
+  const showBirthday =
+    isMe || canViewField(member.visibility_settings, 'date_of_birth', myRole)
+  const age = member.date_of_birth ? calculateAge(member.date_of_birth) : null
+
+  // Money is not directory information: a member sees their own, the committee
+  // sees everyone's, and nobody else sees any of it.
+  const isCommittee = ['committee', 'admin'].includes(myRole)
+  const canViewHistory = isMe || isCommittee
+  const history = canViewHistory
+    ? await getMemberHistory(member.id)
+    : { entries: [], totals: summarizeHistory([]) }
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
@@ -136,6 +153,17 @@ export default async function MemberProfilePage({ params }: ProfilePageProps) {
                 <span className="whitespace-pre-wrap">{member.address}</span>
               </div>
             )}
+            {showBirthday && member.date_of_birth && (
+              <div className="flex items-center gap-3 text-sm">
+                <Cake className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span>
+                  {formatBirthday(member.date_of_birth)}
+                  {age !== null && (
+                    <span className="text-muted-foreground"> — {age} years old</span>
+                  )}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Social links */}
@@ -183,6 +211,22 @@ export default async function MemberProfilePage({ params }: ProfilePageProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Reunion history — your own always, anyone's for committee and admin. */}
+      {canViewHistory && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-base">Reunion History</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MemberHistoryView
+              entries={history.entries}
+              totals={history.totals}
+              showPayments={isMe || isCommittee}
+            />
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

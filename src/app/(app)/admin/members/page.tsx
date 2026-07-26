@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, FileSpreadsheet, Merge } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 import { updateMemberRole } from '@/lib/actions/members'
 import { createProxyMember } from '@/lib/actions/members'
+import { MIN_BIRTH_YEAR } from '@/lib/birthday'
+import { DeleteMemberButton } from './delete-member-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { Role } from '@/types/database'
@@ -43,7 +45,23 @@ export default async function AdminMembersPage() {
         </Link>
       </Button>
 
-      <h1 className="mb-6 text-2xl font-bold">Manage Members</h1>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Manage Members</h1>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/directory/import">
+              <FileSpreadsheet className="mr-1.5 h-4 w-4" />
+              Import from Spreadsheet
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/admin/members/merge">
+              <Merge className="mr-1.5 h-4 w-4" />
+              Merge Duplicates
+            </Link>
+          </Button>
+        </div>
+      </div>
 
       {/* Add proxy member */}
       <Card className="mb-8">
@@ -67,6 +85,16 @@ export default async function AdminMembersPage() {
             <div className="space-y-1">
               <Label htmlFor="family_branch">Family Branch</Label>
               <Input id="family_branch" name="family_branch" placeholder="e.g. Grandma Rose's side" />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="date_of_birth">Date of Birth</Label>
+              <Input
+                id="date_of_birth"
+                name="date_of_birth"
+                type="date"
+                min={`${MIN_BIRTH_YEAR}-01-01`}
+                max={new Date().toISOString().slice(0, 10)}
+              />
             </div>
             <div className="sm:col-span-2">
               <Button type="submit">Create Profile</Button>
@@ -173,6 +201,11 @@ export default async function AdminMembersPage() {
                   <Button variant="ghost" size="sm" asChild>
                     <Link href={`/directory/${member.id}`}>View</Link>
                   </Button>
+                  <DeleteMemberButton
+                    memberId={member.id}
+                    memberName={member.name}
+                    isSelf={member.id === currentMember?.id}
+                  />
                 </div>
               </TableCell>
             </TableRow>

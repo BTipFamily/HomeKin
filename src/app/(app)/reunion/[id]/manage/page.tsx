@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, Calendar, Users, DollarSign } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { updateReunion } from '@/lib/actions/reunions'
+import { DeleteReunion } from './delete-reunion'
 
 interface ManagePageProps {
   params: Promise<{ id: string }>
@@ -216,6 +217,11 @@ export default async function ManagePage({ params }: ManagePageProps) {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Committee can manage a reunion, but only an admin can destroy one. */}
+      {member.role === 'admin' && (
+        <DeleteReunion reunionId={id} reunionName={reunion.name} />
+      )}
     </div>
   )
 }

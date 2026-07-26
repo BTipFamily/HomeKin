@@ -4,10 +4,16 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Calendar, Users, Camera, Megaphone, Plus, ArrowRight } from 'lucide-react'
+import { Calendar, Users, Camera, Megaphone, Plus, ArrowRight, Settings } from 'lucide-react'
+import { getUnreadCounts } from '@/lib/actions/chat'
 import { formatDate } from '@/lib/utils'
 
-export default async function DashboardPage() {
+interface DashboardPageProps {
+  searchParams: Promise<{ deleted?: string; warning?: string }>
+}
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+  const { deleted, warning } = await searchParams
   const supabase = await createClient()
   const {
     data: { user },
@@ -34,8 +40,25 @@ export default async function DashboardPage() {
 
   const canManage = ['committee', 'admin'].includes(member.role)
 
+  // One round-trip for every reunion at once, rather than a pair each.
+  const unread = await getUnreadCounts()
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      {/* Confirmation for a reunion deleted from its (now gone) manage page. */}
+      {deleted && (
+        <div
+          className={`mb-6 rounded-lg border p-4 text-sm ${
+            warning
+              ? 'border-amber-200 bg-amber-50 text-amber-900'
+              : 'border-green-200 bg-green-50 text-green-900'
+          }`}
+        >
+          <p className="font-medium">&ldquo;{deleted}&rdquo; has been deleted.</p>
+          {warning && <p className="mt-1">{warning}</p>}
+        </div>
+      )}
+
       {/* Welcome header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold">Welcome back, {member.name.split(' ')[0]}!</h1>
@@ -108,7 +131,10 @@ export default async function DashboardPage() {
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle className="text-lg">{reunion.name}</CardTitle>
-                    <Badge variant="secondary">{reunion.year}</Badge>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <UnreadBadge counts={unread[reunion.id]} />
+                      <Badge variant="secondary">{reunion.year}</Badge>
+                    </div>
                   </div>
                   {reunion.description && (
                     <CardDescription className="line-clamp-2">
@@ -134,6 +160,13 @@ export default async function DashboardPage() {
                         <Camera className="h-4 w-4" />
                       </Link>
                     </Button>
+                    {canManage && (
+                      <Button asChild variant="ghost" size="sm" title="Manage this reunion">
+                        <Link href={`/reunion/${reunion.id}/manage`}>
+                          <Settings className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -176,5 +209,24 @@ export default async function DashboardPage() {
         )}
       </div>
     </div>
+  )
+}
+
+/** Shows how much a member has not read in a reunion, or nothing at all. */
+function UnreadBadge({ counts }: { counts?: { chat: number; announcements: number } }) {
+  const total = (counts?.chat ?? 0) + (counts?.announcements ?? 0)
+  if (total === 0) return null
+
+  const parts = [
+    counts?.chat ? `${counts.chat} message${counts.chat === 1 ? '' : 's'}` : null,
+    counts?.announcements
+      ? `${counts.announcements} announcement${counts.announcements === 1 ? '' : 's'}`
+      : null,
+  ].filter(Boolean)
+
+  return (
+    <Badge className="bg-red-500 hover:bg-red-500" title={`Unread: ${parts.join(', ')}`}>
+      {total > 99 ? '99+' : total} new
+    </Badge>
   )
 }

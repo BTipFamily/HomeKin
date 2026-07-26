@@ -26,6 +26,7 @@ export type VisibilitySettings = {
   phone?: 'members' | 'committee' | 'none'
   address?: 'members' | 'committee' | 'none'
   email?: 'members' | 'committee' | 'none'
+  date_of_birth?: 'members' | 'committee' | 'none'
 }
 
 export type Member = {
@@ -36,6 +37,8 @@ export type Member = {
   phone: string | null
   address: string | null
   family_branch: string | null
+  /** ISO date (YYYY-MM-DD), or null when the member hasn't given one. */
+  date_of_birth: string | null
   bio: string | null
   photo_url: string | null
   social_links: SocialLinks
@@ -188,11 +191,31 @@ export type Balance = {
   reunion_id: string
   sub_event_id: string | null
   amount_owed: number
+  /** Derived by trigger from the confirmed rows in `payments` — never write it directly. */
   amount_paid: number
   payment_method: PaymentMethod | null
   stripe_checkout_session_id: string | null
+  /** Derived by trigger from amount_owed, amount_paid and pending payments. */
   status: BalanceStatus
   updated_at: string
+}
+
+export type PaymentStatus = 'pending' | 'confirmed'
+
+/** One payment against a balance. Negative amounts are refunds. */
+export type Payment = {
+  id: string
+  balance_id: string
+  member_id: string
+  reunion_id: string
+  amount: number
+  method: PaymentMethod
+  status: PaymentStatus
+  paid_at: string
+  note: string | null
+  stripe_session_id: string | null
+  recorded_by: string | null
+  created_at: string
 }
 
 export type Announcement = {
@@ -226,6 +249,10 @@ export type InviteCode = {
   used_by: string | null
   used_at: string | null
   expires_at: string | null
+  /** Address the signup link was emailed to, or null if shared manually. */
+  sent_to: string | null
+  /** Set only once the email actually went out. */
+  sent_at: string | null
   created_at: string
 }
 
