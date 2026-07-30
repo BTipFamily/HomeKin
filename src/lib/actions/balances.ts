@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { sendReceipt } from '@/lib/statements'
 import type { PaymentMethod } from '@/types/database'
 
 const MANUAL_METHODS: PaymentMethod[] = ['zelle', 'cashapp', 'check', 'other']
@@ -42,6 +43,20 @@ function revalidateFor(reunionId: string, memberId?: string) {
   revalidatePath(`/reunion/${reunionId}/signups`)
   revalidatePath(`/reunion/${reunionId}/report`)
   if (memberId) revalidatePath(`/directory/${memberId}`)
+}
+
+/**
+ * Acknowledges a payment by email, without letting a mail failure undo it.
+ *
+ * Money moving is the part that must not be lost. `sendReceipt` dedupes on its
+ * own, so calling this twice for one payment sends one email.
+ */
+async function emailReceipt(paymentId: string) {
+  try {
+    await sendReceipt(paymentId)
+  } catch (e) {
+    console.error('[Balances] Failed to send receipt:', e instanceof Error ? e.message : e)
+  }
 }
 
 /**
@@ -121,6 +136,10 @@ export async function confirmPayment(paymentId: string, reunionId: string) {
 
   if (error) throw new Error(error.message)
   revalidateFor(reunionId, payment.member_id as string)
+
+  // Now that the money is agreed, tell the member. This is the acknowledgement
+  // worth sending — not the one when they reported it themselves.
+  await emailReceipt(paymentId)
 }
 
 /**
@@ -150,20 +169,28 @@ export async function recordPayment(input: {
     .single()
   if (!balance) throw new Error('Balance not found')
 
-  const { error } = await service.from('payments').insert({
-    balance_id: balance.id,
-    member_id: balance.member_id,
-    reunion_id: balance.reunion_id,
-    amount: value,
-    method: input.method,
-    status: 'confirmed',
-    paid_at: input.paidAt ? new Date(input.paidAt).toISOString() : new Date().toISOString(),
-    note: input.note?.trim() || null,
-    recorded_by: member.id,
-  })
+  const { data: inserted, error } = await service
+    .from('payments')
+    .insert({
+      balance_id: balance.id,
+      member_id: balance.member_id,
+      reunion_id: balance.reunion_id,
+      amount: value,
+      method: input.method,
+      status: 'confirmed',
+      paid_at: input.paidAt ? new Date(input.paidAt).toISOString() : new Date().toISOString(),
+      note: input.note?.trim() || null,
+      recorded_by: member.id,
+    })
+    .select('id')
+    .single()
 
   if (error) throw new Error(error.message)
   revalidateFor(input.reunionId, balance.member_id as string)
+
+  // A negative amount is a refund being recorded, which `sendReceipt` declines
+  // to acknowledge rather than thanking somebody for money going the other way.
+  if (inserted) await emailReceipt(inserted.id as string)
 }
 
 /**

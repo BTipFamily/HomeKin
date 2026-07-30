@@ -89,3 +89,7 @@ psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/07_payments_
 echo "--- unread counts"
 psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/08_unread_counts.sql" 2>&1 \
   | sed 's/^psql.*NOTICE:  /    /'
+
+echo "--- event deadlines"
+psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/09_event_deadlines.sql" 2>&1 \
+  | sed 's/^psql.*NOTICE:  /    /'

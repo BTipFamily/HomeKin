@@ -205,7 +205,7 @@ describe('toReportCsv', () => {
     payments: [
       { id: 'p1', balance_id: 'b1', amount: 40, method: 'zelle', status: 'confirmed', paid_at: '2026-06-01T00:00:00Z', note: null },
     ],
-  }).map((e) => ({ ...e, memberId: 'm1', memberName: 'Jane Smith', memberEmail: 'jane@example.com' }))
+  }).map((e) => ({ ...e, memberId: 'm1', memberName: 'Jane Smith', memberEmail: 'jane@example.com', dueNow: 0, overdue: 0, nextDueDate: null }))
 
   test('round-trips through the CSV parser', () => {
     const grid = parseCsv(toReportCsv(rows))
@@ -226,7 +226,15 @@ describe('toReportCsv', () => {
         { id: 'p1', balance_id: 'b1', amount: -10, method: 'stripe', status: 'confirmed', paid_at: '2026-06-02T00:00:00Z', note: null },
         { id: 'p2', balance_id: 'b1', amount: 50, method: 'check', status: 'pending', paid_at: '2026-06-01T00:00:00Z', note: null },
       ],
-    }).map((e) => ({ ...e, memberId: 'm1', memberName: 'Jane', memberEmail: 'j@x.com' }))
+    }).map((e) => ({
+      ...e,
+      memberId: 'm1',
+      memberName: 'Jane',
+      memberEmail: 'j@x.com',
+      dueNow: 0,
+      overdue: 0,
+      nextDueDate: null,
+    }))
 
     const grid = parseCsv(toReportCsv(withRefund))
     const cell = grid[1][grid[0].indexOf('payments')]

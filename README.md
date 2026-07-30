@@ -42,6 +42,7 @@ in your Vercel project (**Production**, and **Preview** if you use it).
 | `SMTP_HOST` / `SMTP_PORT` | no | Default to `smtp.gmail.com` and `587`. Set for any other provider |
 | `SMTP_SECURE` | no | Implicit TLS. Inferred from the port (465 → on), so only set to override |
 | `EMAIL_FROM` | no | e.g. `HomeKin <you@gmail.com>`. The address **must** be `SMTP_USER` — Gmail rewrites or rejects anything else. Defaults to `SMTP_USER` |
+| `CRON_SECRET` | for reminders | Bearer token Vercel Cron sends to `/api/cron/reminders`. Without it the route refuses to run — and without the route, no deadline reminders go out |
 | `NEXT_PUBLIC_MAPBOX_TOKEN` | for maps | Public token, URL-restricted to your domain |
 | `MAPBOX_SECRET_TOKEN` | for maps | Secret token scoped to `geocoding`, for server-side address lookups |
 
@@ -84,6 +85,59 @@ rely on the fallback, configure custom SMTP under **Supabase → Authentication 
 Emails → SMTP Settings**, and add your production domain to **URL Configuration
 → Redirect URLs** or confirmation links lose their invite code.
 
+### Payment deadlines, statements and reminders
+
+An event can carry **payment deadlines** — checkpoints for when money is due,
+set when you create the event and editable afterwards. Each one is a name, a
+date, and how much: a percentage of what the member owes, a fixed amount per
+person, or "whatever is left". An event can have as many as you need, so
+"deposit in March, half in May, balance in July" is three rows.
+
+What each member owes by each date is **never stored**. It is the event's
+checkpoints applied to that member's balance and headcount, worked out on read
+(`src/lib/payment-schedule.ts`). Storing it would go stale the moment somebody
+adds a guest or the committee reprices the event — the same bug the payments
+ledger exists to prevent.
+
+Payments settle the earliest checkpoint first, so a part payment clears the
+deposit rather than smearing across the schedule. Checkpoints that do not add up
+to the full cost leave the rest as a trailing "remaining balance" due at the
+event, rather than silently inflating the last deadline.
+
+**Members are emailed automatically:**
+
+- A **statement** whenever they sign up, change their headcount or cancel —
+  every selection in that reunion, what each costs, what they have paid, the
+  payment schedule for each event, and what is still outstanding.
+- A **receipt** when a payment is confirmed: a card payment landing via the
+  Stripe webhook, or the committee confirming one that arrived another way. A
+  member reporting their own Zelle transfer is not emailed — telling them it
+  "arrived" before the committee agrees would not be true.
+- A **reminder** before each deadline, at the offsets set on that checkpoint
+  (14 and 3 days by default). Only to members who are actually short at that
+  checkpoint, and once per offset — never twice, guaranteed by a unique index
+  on `email_sends` rather than by remembering to check.
+
+Reminders need a scheduler. `vercel.json` runs `/api/cron/reminders` daily; the
+route requires `Authorization: Bearer $CRON_SECRET`, so set `CRON_SECRET` in
+Vercel or no reminders go out. To test it by hand:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/reminders
+```
+
+**Gmail's 500-a-day cap bites hardest here.** Reminders go one per member — they
+cannot be BCC-batched, since each names a different amount — so a 200-member
+reunion with two checkpoints falling on the same day would spend 400 of the
+day's quota, and exceeding it locks the account for everything else the app
+sends. A run therefore stops at 400 emails and defers the rest to the next day,
+soonest deadlines first. This is the limit that will eventually force a real
+domain and a transactional provider.
+
+The committee report at `/reunion/[id]/report` gains a **payment deadlines**
+panel — every checkpoint with what was expected, collected, and who is short —
+and the CSV export gains `due_now`, `overdue` and `next_due_date` columns.
+
 **Switching to Resend** once you own a domain: `src/lib/email.ts` keeps the
 Resend implementation commented out at the bottom with instructions. It is the
 better option at that point — no daily quota, real bounce handling, and a `From`
@@ -124,6 +178,9 @@ option for getting a fresh one.
 - Sub-events with dates, times, locations, per-person cost, capacity and
   duration.
 - Signups with headcount and guest names, capacity-checked.
+- **Payment deadlines** per event, set when the event is created — percentage,
+  fixed per person, or the remaining balance — each with its own reminder
+  schedule.
 - RSVP links that work without an account.
 - Surveys, photo albums with tagging, and announcements.
 - **Delete reunions** (admin), including cleanup of photo files in storage.
@@ -136,8 +193,12 @@ option for getting a fresh one.
   webhook cannot double-count.
 - **Payments dashboard** (committee/admin): collected, outstanding, and every
   balance with its payment history.
+- **Emailed statements** on every change to a member's selections, and a receipt
+  whenever a payment is confirmed.
+- **Deadline reminders** before each payment checkpoint, to the members who are
+  actually short, once per reminder offset.
 - **Signups & payments report** (committee/admin): per-member totals, search,
-  outstanding/settled filters and CSV export.
+  outstanding/settled filters, a payment-deadline panel and CSV export.
 - Members see their own history on their profile; committee and admins see
   anyone's.
 

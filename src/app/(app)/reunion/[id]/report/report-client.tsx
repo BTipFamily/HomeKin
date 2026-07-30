@@ -106,6 +106,51 @@ export default function ReportClient({
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
+      {report.deadlines.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Payment deadlines</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+                    <th className="px-4 py-2 font-medium">Due by</th>
+                    <th className="px-4 py-2 font-medium">Event</th>
+                    <th className="px-4 py-2 font-medium">Checkpoint</th>
+                    <th className="px-4 py-2 text-right font-medium">Expected</th>
+                    <th className="px-4 py-2 text-right font-medium">Collected</th>
+                    <th className="px-4 py-2 text-right font-medium">Short</th>
+                    <th className="px-4 py-2 text-right font-medium">Members</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.deadlines.map((d) => (
+                    <tr key={d.deadlineId} className="border-b last:border-0">
+                      <td className="whitespace-nowrap px-4 py-2">{d.dueDate ?? '—'}</td>
+                      <td className="px-4 py-2">{d.eventName}</td>
+                      <td className="px-4 py-2">{d.label}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(d.expected)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(d.collected)}</td>
+                      <td
+                        className={`px-4 py-2 text-right ${d.short > 0 ? 'font-medium text-amber-600' : 'text-muted-foreground'}`}
+                      >
+                        {formatCurrency(d.short)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-2 text-right text-muted-foreground">
+                        {d.membersPaid} paid
+                        {d.membersShort > 0 && `, ${d.membersShort} short`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">

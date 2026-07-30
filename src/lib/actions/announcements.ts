@@ -3,18 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { sendBulkEmail } from '@/lib/email'
+import { escapeHtml } from '@/lib/email-layout'
 
 export type AnnouncementState = {
   status: 'idle' | 'success' | 'warning' | 'error'
   message: string
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
 }
 
 function announcementHtml(

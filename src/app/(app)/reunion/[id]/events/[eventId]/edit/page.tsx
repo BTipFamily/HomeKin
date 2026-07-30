@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from 'lucide-react'
 import { updateSubEvent } from '@/lib/actions/sub-events'
+import DeadlineFields from '../../deadline-fields'
+import type { EventDeadline } from '@/types/database'
 
 interface EditEventPageProps {
   params: Promise<{ id: string; eventId: string }>
@@ -36,6 +38,12 @@ export default async function EditEventPage({ params }: EditEventPageProps) {
     .eq('id', eventId)
     .single()
   if (!event) notFound()
+
+  const { data: deadlines } = await supabase
+    .from('event_deadlines')
+    .select('*')
+    .eq('sub_event_id', eventId)
+    .order('due_date')
 
   async function handleUpdate(formData: FormData) {
     'use server'
@@ -148,6 +156,8 @@ export default async function EditEventPage({ params }: EditEventPageProps) {
                 />
               </div>
             </div>
+
+            <DeadlineFields existing={(deadlines ?? []) as EventDeadline[]} />
 
             <div className="flex gap-3 pt-2">
               <Button type="submit">Save Changes</Button>

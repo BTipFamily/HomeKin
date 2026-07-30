@@ -242,6 +242,11 @@ export type ReportRow = HistoryEntry & {
   memberId: string
   memberName: string
   memberEmail: string
+  /** Shortfall on checkpoints already due or past — 0 when no deadlines are set. */
+  dueNow: number
+  overdue: number
+  /** The next unsettled checkpoint, or null once everything is paid. */
+  nextDueDate: string | null
 }
 
 export const REPORT_COLUMNS = [
@@ -256,6 +261,9 @@ export const REPORT_COLUMNS = [
   'amount_owed',
   'amount_paid',
   'outstanding',
+  'due_now',
+  'overdue',
+  'next_due_date',
   'balance_status',
   'payments',
 ] as const
@@ -286,6 +294,9 @@ export function toReportCsv(rows: ReportRow[]): string {
       r.amountOwed.toFixed(2),
       r.amountPaid.toFixed(2),
       r.outstanding.toFixed(2),
+      r.dueNow.toFixed(2),
+      r.overdue.toFixed(2),
+      r.nextDueDate ?? '',
       r.balanceStatus ?? '',
       describePayments(r.payments),
     ]),

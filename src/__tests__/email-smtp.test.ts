@@ -7,6 +7,9 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { sendBulkEmail, sendEmail } from '@/lib/email'
 import { buildConfirmUrl, confirmationEmailHtml } from '@/lib/signup-confirmation'
+import { buildSchedule } from '@/lib/payment-schedule'
+import { reminderHtml, reminderSubject } from '@/lib/reminder-email'
+import { statementHtml, statementSubject } from '@/lib/statement-email'
 import { startTestSmtpServer, type TestSmtpServer } from './helpers/smtp-test-server'
 import type { AddressObject } from 'mailparser'
 
@@ -257,5 +260,116 @@ describe('sendBulkEmail over SMTP', () => {
 
     expect(result.recipients).toBe(2)
     expect(smtp.messages[0].envelopeTo.filter((a) => a === 'a@example.com')).toHaveLength(1)
+  })
+})
+
+describe('the statement email over SMTP', () => {
+  const line = {
+    eventName: 'Banquet',
+    eventDate: '2026-08-01',
+    headcount: 2,
+    amountOwed: 200,
+    amountPaid: 50,
+    outstanding: 150,
+    credit: 0,
+    instalments: buildSchedule({
+      amountOwed: 200,
+      amountPaid: 50,
+      headcount: 2,
+      deadlines: [
+        {
+          id: 'd1',
+          label: 'Deposit',
+          due_date: '2026-03-01',
+          amount_type: 'percent',
+          amount_value: 50,
+          reminder_offsets: [14, 3],
+          sort_order: 0,
+        },
+        {
+          id: 'd2',
+          label: 'Final balance',
+          due_date: '2026-07-01',
+          amount_type: 'remainder',
+          amount_value: null,
+          reminder_offsets: [14],
+          sort_order: 1,
+        },
+      ],
+      asOf: '2026-04-01',
+      fallbackDueDate: '2026-08-01',
+    }),
+  }
+
+  const totals = {
+    totalOwed: 200,
+    totalPaid: 50,
+    totalOutstanding: 150,
+    totalCredit: 0,
+    dueNow: 50,
+    overdue: 50,
+  }
+
+  test('survives the round trip with its figures and deadlines intact', async () => {
+    smtp = await startTestSmtpServer()
+    useServer(smtp, { from: 'HomeKin <family@gmail.com>' })
+
+    const result = await sendEmail({
+      to: 'cousin@example.com',
+      subject: statementSubject('Smith Family Reunion', totals),
+      html: statementHtml({
+        memberName: 'Jane Smith',
+        reunionName: 'Smith Family Reunion',
+        lines: [line],
+        totals,
+        payUrl: 'https://homekin.example.com/reunion/r1/signups',
+      }),
+    })
+
+    expect(result).toEqual({ sent: true })
+
+    const [message] = smtp.messages
+    expect(message.parsed.subject).toBe('Smith Family Reunion: $50.00 overdue')
+    expect(message.parsed.html).toContain('Hi Jane Smith,')
+
+    // The figures a member will act on. Quoted-printable encodes the table
+    // markup heavily, so this is the assertion that the decoded body is right.
+    const html = String(message.parsed.html)
+    expect(html).toContain('Banquet')
+    expect(html).toContain('$200.00')
+    expect(html).toContain('$150.00')
+    expect(html).toContain('Deposit')
+    expect(html).toContain('Final balance')
+    expect(html).toContain('March 1, 2026')
+    expect(html).toContain('href="https://homekin.example.com/reunion/r1/signups"')
+  })
+
+  test('a reminder arrives with the amount and date unmangled', async () => {
+    smtp = await startTestSmtpServer()
+    useServer(smtp)
+
+    const input = {
+      memberName: 'Jane Smith',
+      reunionName: 'Smith Family Reunion',
+      eventName: 'Banquet',
+      label: 'Deposit',
+      dueDate: '2026-03-01',
+      shortfall: 50,
+      eventOutstanding: 150,
+      daysUntilDue: 14,
+      payUrl: 'https://homekin.example.com/reunion/r1/signups',
+    }
+
+    const result = await sendEmail({
+      to: 'cousin@example.com',
+      subject: reminderSubject(input),
+      html: reminderHtml(input),
+    })
+
+    expect(result).toEqual({ sent: true })
+    const [message] = smtp.messages
+    expect(message.parsed.subject).toBe('Smith Family Reunion: $50.00 due in 14 days')
+    expect(String(message.parsed.html)).toContain('March 1, 2026')
+    expect(String(message.parsed.html)).toContain('$50.00')
   })
 })

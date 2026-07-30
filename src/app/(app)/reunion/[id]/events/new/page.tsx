@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from 'lucide-react'
 import { createSubEvent } from '@/lib/actions/sub-events'
+import DeadlineFields from '../deadline-fields'
 
 interface NewEventPageProps {
   params: Promise<{ id: string }>
@@ -146,6 +147,8 @@ export default async function NewEventPage({ params }: NewEventPageProps) {
                 />
               </div>
             </div>
+
+            <DeadlineFields />
 
             <div className="flex gap-3 pt-2">
               <Button type="submit">Create Event</Button>

@@ -4,6 +4,8 @@
 // project: an action module marked 'use server' may only export async
 // functions, and these are neither async nor worth mocking a network for.
 
+import { escapeHtml } from '@/lib/email-layout'
+
 /** Verification types we are willing to hand to `verifyOtp`. */
 export const CONFIRM_TYPES = ['signup', 'magiclink', 'email'] as const
 export type ConfirmType = (typeof CONFIRM_TYPES)[number]
@@ -94,14 +96,6 @@ export function confirmationEmailHtml({
       </p>
     </div>
   `
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
 }
 
 /**

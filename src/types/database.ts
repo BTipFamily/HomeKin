@@ -218,6 +218,43 @@ export type Payment = {
   created_at: string
 }
 
+/** How a deadline's amount is worked out for a given member. */
+export type DeadlineAmountType = 'percent' | 'fixed_per_person' | 'remainder'
+
+/**
+ * A payment checkpoint on an event.
+ *
+ * What each member owes by this date is not stored — it is this row applied to
+ * their balance and headcount. See `src/lib/payment-schedule.ts`.
+ */
+export type EventDeadline = {
+  id: string
+  sub_event_id: string
+  label: string
+  due_date: string
+  amount_type: DeadlineAmountType
+  /** Null exactly when `amount_type` is 'remainder'. */
+  amount_value: number | null
+  /** Days before `due_date` to email a reminder; one send per entry. */
+  reminder_offsets: number[]
+  sort_order: number
+  created_at: string
+}
+
+export type EmailSendKind = 'statement' | 'deadline_reminder' | 'payment_receipt'
+
+/** A record that we sent something, and the dedupe key that stops a repeat. */
+export type EmailSend = {
+  id: string
+  kind: EmailSendKind
+  member_id: string
+  reunion_id: string
+  deadline_id: string | null
+  offset_days: number | null
+  payment_id: string | null
+  sent_at: string
+}
+
 export type Announcement = {
   id: string
   reunion_id: string

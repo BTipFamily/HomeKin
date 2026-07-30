@@ -2,6 +2,27 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { sendStatement } from '@/lib/statements'
+
+/**
+ * Emails the member their statement without letting a mail failure undo the
+ * change that triggered it.
+ *
+ * The signup is the thing the member asked for; the summary is a courtesy. A
+ * refused SMTP login should not lose somebody's place at an event, so the
+ * failure is logged (sendEmail already does that) and the action returns
+ * normally. The trade-off is that a member is never told the email did not
+ * arrive — the page redirects too quickly to say so. The committee report is
+ * where a missing statement becomes visible.
+ */
+async function emailStatement(memberId: string, reunionId: string | undefined) {
+  if (!reunionId) return
+  try {
+    await sendStatement(memberId, reunionId)
+  } catch (e) {
+    console.error('[Signups] Failed to send statement:', e instanceof Error ? e.message : e)
+  }
+}
 
 export async function upsertSignup(formData: FormData) {
   const supabase = await createClient()
@@ -99,6 +120,8 @@ export async function upsertSignup(formData: FormData) {
   revalidatePath(`/reunion/${reunionId}/signups`)
   revalidatePath(`/reunion/${reunionId}/budget`)
   revalidatePath(`/directory/${member.id}`)
+
+  await emailStatement(member.id, reunionId)
 }
 
 export async function cancelSignup(signupId: string, reunionId: string, subEventId: string) {
@@ -149,6 +172,13 @@ export async function cancelSignup(signupId: string, reunionId: string, subEvent
   revalidatePath(`/reunion/${reunionId}/signups`)
   revalidatePath(`/reunion/${reunionId}/budget`)
   revalidatePath(`/directory/${member.id}`)
+
+  // Sent after cancelling too: what someone most wants to see when they pull
+  // out of an event is confirmation that they are no longer being charged for
+  // it. `buildStatement` returns null once they have nothing left in the
+  // reunion, so a member with no remaining selections is not emailed an empty
+  // table.
+  await emailStatement(member.id, reunionId)
 }
 
 export async function confirmSignup(signupId: string, reunionId: string) {

@@ -2,6 +2,14 @@
 
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import {
+  rollupByDeadline,
+  scheduleTotals,
+  type Deadline,
+  type DeadlineRollup,
+  type Instalment,
+} from '@/lib/payment-schedule'
+import { deadlinesByEvent, scheduleForEntry, today } from '@/lib/statements'
+import {
   buildMemberHistory,
   summarizeHistory,
   toReportCsv,
@@ -101,7 +109,12 @@ export type ReunionReport = {
     owed: number
     paid: number
     outstanding: number
+    /** Shortfall on checkpoints already due — what to chase today. */
+    dueNow: number
+    overdue: number
   }[]
+  /** Every payment checkpoint in the reunion, with who has met it. */
+  deadlines: (DeadlineRollup & { eventName: string })[]
 }
 
 /**
@@ -123,24 +136,41 @@ export async function getReunionReport(reunionId: string): Promise<ReunionReport
   const reunion = context.reunions.find((r) => r.id === reunionId)
   if (!reunion) throw new Error('That reunion no longer exists.')
 
-  const [{ data: signups }, { data: balances }, { data: payments }, { data: members }] =
-    await Promise.all([
-      eventIds.length > 0
-        ? service
-            .from('signups')
-            .select('member_id, sub_event_id, headcount, status, created_at')
-            .in('sub_event_id', eventIds)
-        : Promise.resolve({ data: [] }),
-      service
-        .from('balances')
-        .select('id, member_id, sub_event_id, reunion_id, amount_owed, amount_paid, status')
-        .eq('reunion_id', reunionId),
-      service
-        .from('payments')
-        .select('id, member_id, balance_id, amount, method, status, paid_at, note')
-        .eq('reunion_id', reunionId),
-      service.from('members').select('id, name, email').order('name'),
-    ])
+  const [
+    { data: signups },
+    { data: balances },
+    { data: payments },
+    { data: members },
+    { data: deadlineRows },
+  ] = await Promise.all([
+    eventIds.length > 0
+      ? service
+          .from('signups')
+          .select('member_id, sub_event_id, headcount, status, created_at')
+          .in('sub_event_id', eventIds)
+      : Promise.resolve({ data: [] }),
+    service
+      .from('balances')
+      .select('id, member_id, sub_event_id, reunion_id, amount_owed, amount_paid, status')
+      .eq('reunion_id', reunionId),
+    service
+      .from('payments')
+      .select('id, member_id, balance_id, amount, method, status, paid_at, note')
+      .eq('reunion_id', reunionId),
+    service.from('members').select('id, name, email').order('name'),
+    eventIds.length > 0
+      ? service
+          .from('event_deadlines')
+          .select(
+            'id, sub_event_id, label, due_date, amount_type, amount_value, reminder_offsets, sort_order'
+          )
+          .in('sub_event_id', eventIds)
+      : Promise.resolve({ data: [] }),
+  ])
+
+  const asOf = today()
+  const byEvent = deadlinesByEvent((deadlineRows ?? []) as (Deadline & { sub_event_id: string })[])
+  const allInstalments: Instalment[] = []
 
   type WithMember = { member_id: string }
   const signupsByMember = new Map<string, HistorySignup[]>()
@@ -181,16 +211,31 @@ export async function getReunionReport(reunionId: string): Promise<ReunionReport
 
     if (entries.length === 0) continue
 
+    let memberDueNow = 0
+    let memberOverdue = 0
+
     for (const entry of entries) {
+      // The same expansion the statement email uses, so the report and the
+      // email a member received can never disagree about what they owe.
+      const instalments = scheduleForEntry(entry, byEvent, asOf)
+      allInstalments.push(...instalments)
+      const scheduled = scheduleTotals(instalments)
+      memberDueNow += scheduled.dueNow
+      memberOverdue += scheduled.overdue
+
       rows.push({
         ...entry,
         memberId: member.id,
         memberName: member.name,
         memberEmail: member.email,
+        dueNow: scheduled.dueNow,
+        overdue: scheduled.overdue,
+        nextDueDate: scheduled.nextDueDate,
       })
     }
 
     const totals = summarizeHistory(entries)
+    const round = (n: number) => Math.round(n * 100) / 100
     byMember.push({
       memberId: member.id,
       memberName: member.name,
@@ -200,7 +245,15 @@ export async function getReunionReport(reunionId: string): Promise<ReunionReport
       owed: totals.totalOwed,
       paid: totals.totalPaid,
       outstanding: totals.totalOutstanding,
+      dueNow: round(memberDueNow),
+      overdue: round(memberOverdue),
     })
+  }
+
+  const eventNameByDeadline = new Map<string, string>()
+  for (const [eventId, deadlines] of byEvent) {
+    const eventName = context.events.find((e) => e.id === eventId)?.name ?? 'Removed event'
+    for (const deadline of deadlines) eventNameByDeadline.set(deadline.id, eventName)
   }
 
   return {
@@ -208,6 +261,10 @@ export async function getReunionReport(reunionId: string): Promise<ReunionReport
     rows,
     totals: summarizeHistory(rows),
     byMember: byMember.sort((a, b) => b.outstanding - a.outstanding || a.memberName.localeCompare(b.memberName)),
+    deadlines: rollupByDeadline(allInstalments).map((rollup) => ({
+      ...rollup,
+      eventName: eventNameByDeadline.get(rollup.deadlineId) ?? 'Removed event',
+    })),
   }
 }
 

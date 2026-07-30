@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import type Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
+import { sendReceipt } from '@/lib/statements'
 import { createServiceClient } from '@/lib/supabase/server'
 
 // Stripe requires the raw body for signature verification — do not parse JSON first
@@ -36,22 +37,37 @@ async function recordCheckoutPayment(session: Stripe.Checkout.Session): Promise<
   }
 
   const service = createServiceClient()
-  const { error } = await service.from('payments').insert({
-    balance_id: balanceId,
-    member_id: memberId,
-    reunion_id: reunionId,
-    amount,
-    method: 'stripe',
-    status: 'confirmed',
-    paid_at: new Date().toISOString(),
-    stripe_session_id: session.id,
-  })
+  const { data: inserted, error } = await service
+    .from('payments')
+    .insert({
+      balance_id: balanceId,
+      member_id: memberId,
+      reunion_id: reunionId,
+      amount,
+      method: 'stripe',
+      status: 'confirmed',
+      paid_at: new Date().toISOString(),
+      stripe_session_id: session.id,
+    })
+    .select('id')
+    .single()
 
   if (error) {
     // 23505 is the unique index on stripe_session_id doing its job.
     if (error.code === '23505') return Response.json({ received: true, duplicate: true })
     console.error('Stripe webhook: failed to record payment', session.id, error)
     return Response.json({ error: 'DB insert failed' }, { status: 500 })
+  }
+
+  // Acknowledge the payment. Deliberately after the insert has succeeded and
+  // outside its error handling: a mail failure must not return a 500, or Stripe
+  // retries the webhook and we record the payment again on the next delivery.
+  if (inserted) {
+    try {
+      await sendReceipt(inserted.id as string)
+    } catch (e) {
+      console.error('Stripe webhook: failed to send receipt', session.id, e)
+    }
   }
 
   return Response.json({ received: true })
