@@ -34,7 +34,7 @@ in your Vercel project (**Production**, and **Preview** if you use it).
 | `NEXT_PUBLIC_SUPABASE_URL` | yes | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes | Public client key, governed by RLS |
 | `SUPABASE_SERVICE_ROLE_KEY` | yes | Server-only key that bypasses RLS. Never expose it to the browser |
-| `NEXT_PUBLIC_APP_URL` | yes | Your full origin, no trailing slash. Builds Stripe return URLs, invite links and RSVP links — a stale value here sends people to a dead page after paying |
+| `NEXT_PUBLIC_APP_URL` | yes | Your full origin, no trailing slash. Builds Stripe return URLs, invite links, RSVP links and signup confirmation links — a stale value here sends people to a dead page after paying, or to a confirmation link that goes nowhere |
 | `STRIPE_SECRET_KEY` | for payments | `sk_test_…` or `sk_live_…` |
 | `STRIPE_WEBHOOK_SECRET` | for payments | `whsec_…`. **Per-mode** — a test-mode secret silently rejects every live event |
 | `RESEND_API_KEY` | for email | Without it, nothing is delivered. The app now says so rather than reporting success |
@@ -45,15 +45,28 @@ in your Vercel project (**Production**, and **Preview** if you use it).
 Vercel only applies environment variables to **new** deployments — after
 changing one, redeploy.
 
-### Email is two separate systems
+### Where the confirmation email comes from
 
 `RESEND_API_KEY` covers what HomeKin sends itself: invite codes, RSVP
-invitations and announcements. It does **not** cover the signup confirmation
-email, which Supabase Auth sends. Supabase's built-in sender is rate-limited to
-a handful per hour from a shared domain and reliably lands in spam, so before
-inviting real people configure custom SMTP under **Supabase → Authentication →
+invitations, announcements — **and the signup confirmation email**. With Resend
+configured, signup mints the confirmation link server-side with the Supabase
+admin API and sends it through Resend, so it comes from your verified domain and
+is not subject to Supabase's built-in rate limit. This needs both
+`RESEND_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY`.
+
+Without them, signup falls back to Supabase Auth's built-in sender, which is
+rate-limited to a handful of messages per hour from a shared domain and reliably
+lands in spam — the usual reason a confirmation email "never arrives". If you
+rely on the fallback, configure custom SMTP under **Supabase → Authentication →
 Emails → SMTP Settings**, and add your production domain to **URL Configuration
 → Redirect URLs** or confirmation links lose their invite code.
+
+Either way `NEXT_PUBLIC_APP_URL` must be your real origin: the emailed link is
+built from it, never from the browser's, so a stale value sends people to a dead
+host. Emailed links land on `/api/auth/confirm`, which verifies the token, claims
+any directory profile waiting for that address and redeems the invite code in one
+request. A used or expired link returns to `/login` saying so, with the magic-link
+option for getting a fresh one.
 
 ---
 

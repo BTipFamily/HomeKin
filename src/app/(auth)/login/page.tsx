@@ -14,7 +14,17 @@ function LoginForm() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const next = searchParams.get('next') || '/dashboard'
-  const profileError = searchParams.get('error') === 'no_profile'
+  const errorParam = searchParams.get('error')
+  const profileError = errorParam === 'no_profile'
+  // A confirmation link that did not work is the one failure people arrive here
+  // with no idea what to do about, so name it rather than dropping them on a
+  // bare sign-in form.
+  const linkError =
+    errorParam === 'confirm_link_expired' || errorParam === 'auth_failed'
+      ? 'That link has already been used or has expired. Enter your email below and choose "Email me a magic link" to get a fresh one.'
+      : errorParam === 'confirm_link_invalid'
+        ? 'That confirmation link was incomplete — it may have been broken across lines by your email app. Try copying the whole link, or use "Email me a magic link" below.'
+        : ''
 
   const [mode, setMode] = useState<'password' | 'magic'>('password')
   const [email, setEmail] = useState('')
@@ -121,6 +131,12 @@ function LoginForm() {
                 {signingOut ? 'Signing out...' : 'Sign out'}
               </Button>
             </AlertDescription>
+          </Alert>
+        )}
+
+        {linkError && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription>{linkError}</AlertDescription>
           </Alert>
         )}
 

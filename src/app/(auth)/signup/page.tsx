@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useTransition, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { resendConfirmation, startSignup } from '@/lib/actions/signup'
+import { explainAuthEmailError, isObfuscatedExistingUser } from '@/lib/signup-confirmation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,6 +13,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { CheckCircle2, AlertCircle, Eye, EyeOff } from 'lucide-react'
 
 type InviteStatus = 'checking' | 'valid' | 'invalid' | 'used' | 'expired'
+
+/** What the confirmation screen should say once an account exists. */
+type SentState = { existingAccount: boolean }
 
 function SignupForm() {
   const searchParams = useSearchParams()
@@ -26,9 +31,11 @@ function SignupForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [phone, setPhone] = useState('')
   const [familyBranch, setFamilyBranch] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [emailSent, setEmailSent] = useState(false)
+  const [submitting, startSubmit] = useTransition()
+  const [sent, setSent] = useState<SentState | null>(null)
   const [error, setError] = useState('')
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [resendError, setResendError] = useState('')
 
   useEffect(() => {
     if (codeFromUrl) validateCode(codeFromUrl)
@@ -61,18 +68,90 @@ function SignupForm() {
     setInviteStatus('valid')
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (inviteStatus !== 'valid') return
     if (password.length < 8) {
       setError('Password must be at least 8 characters.')
       return
     }
-    setSubmitting(true)
     setError('')
 
-    const supabase = createClient()
     const normalizedCode = code.trim().toUpperCase()
+
+    startSubmit(async () => {
+      const result = await startSignup({
+        name,
+        email,
+        password,
+        phone,
+        familyBranch,
+        code: normalizedCode,
+      })
+
+      switch (result.status) {
+        case 'sent':
+          setSent({ existingAccount: result.existingAccount })
+          return
+        case 'account_active':
+          // Confirmation is switched off for this project: there is nothing to
+          // wait for, so sign in and go.
+          await signInAndProvision(normalizedCode)
+          return
+        case 'invalid_code':
+          setInviteStatus(result.reason)
+          setError(
+            result.reason === 'used'
+              ? 'That invite code has already been used.'
+              : result.reason === 'expired'
+                ? 'That invite code has expired. Ask an admin for a new one.'
+                : 'That invite code is not valid.'
+          )
+          return
+        case 'error':
+          setError(result.message)
+          return
+        case 'delivery_unavailable':
+          // HomeKin cannot send the email itself, so fall back to Supabase's
+          // built-in mailer. Nothing has been created at this point.
+          await signUpViaSupabaseMailer(normalizedCode)
+          return
+      }
+    })
+  }
+
+  /** Signs in with the password just chosen and makes sure a member row exists. */
+  async function signInAndProvision(normalizedCode: string) {
+    const supabase = createClient()
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+    if (signInError) {
+      setError(signInError.message)
+      return
+    }
+    const res = await fetch('/api/auth/provision-member', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        phone,
+        family_branch: familyBranch,
+        invite_code: normalizedCode,
+      }),
+    })
+    if (!res.ok) {
+      setError('Account created but profile setup failed. Please contact your admin.')
+      return
+    }
+    window.location.href = '/dashboard'
+  }
+
+  /**
+   * The pre-Resend path, kept for deployments that have not configured email.
+   * Supabase's built-in sender is rate-limited and prone to being filtered, so
+   * this reports what actually happened rather than assuming a link arrived.
+   */
+  async function signUpViaSupabaseMailer(normalizedCode: string) {
+    const supabase = createClient()
 
     const { data, error: authError } = await supabase.auth.signUp({
       email,
@@ -89,8 +168,7 @@ function SignupForm() {
     })
 
     if (authError) {
-      setError(authError.message)
-      setSubmitting(false)
+      setError(explainAuthEmailError(authError.message) ?? authError.message)
       return
     }
 
@@ -104,17 +182,57 @@ function SignupForm() {
       })
       if (!res.ok) {
         setError('Account created but profile setup failed. Please contact your admin.')
-        setSubmitting(false)
         return
       }
       window.location.href = '/dashboard'
       return
     }
 
-    setEmailSent(true)
+    // No session and no error, but Supabase sends nothing at all when the
+    // address already has an account — it returns a stub user with no
+    // identities. Telling this person to check their inbox is a dead end.
+    if (isObfuscatedExistingUser(data.user)) {
+      setError(
+        'That email address already has an account. Sign in instead, or use "Forgot password" if you cannot get in.'
+      )
+      return
+    }
+
+    setSent({ existingAccount: false })
   }
 
-  if (emailSent) {
+  async function handleResend() {
+    setResendState('sending')
+    setResendError('')
+    const result = await resendConfirmation({ email, code: code.trim().toUpperCase() })
+    if (result.status === 'sent') {
+      setResendState('sent')
+      return
+    }
+    if (result.status === 'delivery_unavailable') {
+      // Same fallback as signup itself: ask Supabase to send it again.
+      const supabase = createClient()
+      const { error: resendError } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/api/auth/callback?next=/dashboard&invite_code=${encodeURIComponent(code.trim().toUpperCase())}`,
+        },
+      })
+      if (!resendError) {
+        setResendState('sent')
+        return
+      }
+      setResendState('error')
+      setResendError(explainAuthEmailError(resendError.message) ?? resendError.message)
+      return
+    }
+
+    setResendState('error')
+    setResendError(result.message)
+  }
+
+  if (sent) {
     return (
       <Card>
         <CardContent className="pt-6">
@@ -123,11 +241,42 @@ function SignupForm() {
             <div>
               <h2 className="text-lg font-semibold">Almost there!</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                We sent a confirmation link to <strong>{email}</strong>.
-                <br />
-                Click it to complete your account setup.
+                {sent.existingAccount ? (
+                  <>
+                    That address already had an account, so we sent a sign-in link to{' '}
+                    <strong>{email}</strong>.
+                  </>
+                ) : (
+                  <>
+                    We sent a confirmation link to <strong>{email}</strong>.
+                    <br />
+                    Click it to complete your account setup.
+                  </>
+                )}
+              </p>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Nothing after a minute or two? Check your spam folder — then try again below.
               </p>
             </div>
+
+            {resendState === 'sent' ? (
+              <p className="text-xs text-green-600">Sent again. It can take a minute to arrive.</p>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleResend}
+                disabled={resendState === 'sending'}
+              >
+                {resendState === 'sending' ? 'Sending...' : 'Resend the email'}
+              </Button>
+            )}
+            {resendState === 'error' && (
+              <Alert variant="destructive">
+                <AlertDescription>{resendError}</AlertDescription>
+              </Alert>
+            )}
           </div>
         </CardContent>
       </Card>
