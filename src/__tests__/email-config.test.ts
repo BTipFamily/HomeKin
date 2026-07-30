@@ -39,14 +39,17 @@ describe('smtpConfig', () => {
 
   test('defaults to Gmail on the STARTTLS port', () => {
     process.env.SMTP_USER = 'family@gmail.com'
-    process.env.SMTP_PASS = 'abcd efgh ijkl mnop'
+    // Not written in Gmail's "xxxx xxxx xxxx xxxx" app-password shape on
+    // purpose: secret scanners flag that pattern as a live credential, and a
+    // failing security check on every PR trains people to ignore them.
+    process.env.SMTP_PASS = 'fake-not-a-real-secret'
 
     expect(smtpConfig()).toEqual({
       host: 'smtp.gmail.com',
       port: 587,
       secure: false,
       user: 'family@gmail.com',
-      pass: 'abcd efgh ijkl mnop',
+      pass: 'fake-not-a-real-secret',
       from: 'family@gmail.com',
     })
     expect(isEmailConfigured()).toBe(true)
