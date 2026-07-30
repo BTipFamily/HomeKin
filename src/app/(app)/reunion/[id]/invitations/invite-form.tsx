@@ -67,7 +67,7 @@ export default function InviteForm({ reunionId, members, subEvents }: InviteForm
           {result.notEmailed.length > 0 && (
             <p className="mt-1">
               {result.emailNotConfigured
-                ? 'Email is not set up yet, so nothing was delivered. The invitations exist — send the RSVP links by hand, or set RESEND_API_KEY.'
+                ? 'Email is not set up yet, so nothing was delivered. The invitations exist — send the RSVP links by hand, or set SMTP_USER and SMTP_PASS.'
                 : `Could not reach: ${result.notEmailed.join(', ')}.`}
             </p>
           )}

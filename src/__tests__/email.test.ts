@@ -1,11 +1,13 @@
 import { beforeEach, vi } from 'vitest'
 import { sendBulkEmail, sendEmail } from '@/lib/email'
 
-// Every test here runs with RESEND_API_KEY unset, which is the configuration
-// that used to fail silently: the point is that a caller can now tell nothing
-// was delivered.
+// Every test here runs with no SMTP credentials, which is the configuration that
+// used to fail silently: the point is that a caller can now tell nothing was
+// delivered. Delivery over a real SMTP connection is covered in
+// email-smtp.test.ts.
 beforeEach(() => {
-  delete process.env.RESEND_API_KEY
+  delete process.env.SMTP_USER
+  delete process.env.SMTP_PASS
   vi.spyOn(console, 'log').mockImplementation(() => {})
 })
 

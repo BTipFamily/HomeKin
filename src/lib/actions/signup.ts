@@ -3,6 +3,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createServiceClient } from '@/lib/supabase/server'
 import { sendEmail } from '@/lib/email'
+import { isEmailConfigured } from '@/lib/email-config'
 import {
   appOrigin,
   buildConfirmUrl,
@@ -23,9 +24,9 @@ export type SignupResult =
    */
   | { status: 'account_active' }
   /**
-   * We cannot deliver it ourselves — no RESEND_API_KEY or no service-role key.
-   * Checked before anything is created, so the caller can safely fall back to
-   * Supabase's built-in mailer.
+   * We cannot deliver it ourselves — no SMTP credentials or no service-role
+   * key. Checked before anything is created, so the caller can safely fall back
+   * to Supabase's built-in mailer.
    */
   | { status: 'delivery_unavailable' }
   | { status: 'invalid_code'; reason: 'invalid' | 'used' | 'expired' }
@@ -42,15 +43,15 @@ type SignupInput = {
 
 /** Whether HomeKin can send the confirmation email itself. */
 function canDeliverOurselves(): boolean {
-  return !!process.env.RESEND_API_KEY && !!process.env.SUPABASE_SERVICE_ROLE_KEY
+  return isEmailConfigured() && !!process.env.SUPABASE_SERVICE_ROLE_KEY
 }
 
 /**
- * Creates the account and emails the confirmation link through Resend.
+ * Creates the account and emails the confirmation link over SMTP.
  *
  * Supabase's built-in sender is rate-limited to a handful of messages an hour
  * from a shared domain and reliably lands in spam, which is why confirmation
- * emails go missing. When Resend is configured we mint the link ourselves with
+ * emails go missing. When SMTP is configured we mint the link ourselves with
  * the admin API and send it down the same path as every other email this app
  * sends, so a failure is visible instead of silent.
  */

@@ -174,7 +174,7 @@ export async function generateInviteCode(
   // go out so the admin sends the link themselves rather than assuming it did.
   const why =
     result.reason === 'not_configured'
-      ? 'email is not set up yet (RESEND_API_KEY is missing)'
+      ? 'email is not set up yet (SMTP_USER and SMTP_PASS are missing)'
       : `the email provider rejected it${result.detail ? ` — ${result.detail}` : ''}`
 
   return {

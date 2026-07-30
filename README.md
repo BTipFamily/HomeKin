@@ -4,7 +4,7 @@ A family reunion planner: one place for the family directory, the family tree,
 event signups, money, photos and chat.
 
 Built with Next.js (App Router), Supabase (Postgres, Auth, Storage, RLS),
-Stripe for card payments, Resend for email and Mapbox for maps.
+Stripe for card payments, SMTP (Gmail) for email and Mapbox for maps.
 
 ---
 
@@ -37,29 +37,57 @@ in your Vercel project (**Production**, and **Preview** if you use it).
 | `NEXT_PUBLIC_APP_URL` | yes | Your full origin, no trailing slash. Builds Stripe return URLs, invite links, RSVP links and signup confirmation links — a stale value here sends people to a dead page after paying, or to a confirmation link that goes nowhere |
 | `STRIPE_SECRET_KEY` | for payments | `sk_test_…` or `sk_live_…` |
 | `STRIPE_WEBHOOK_SECRET` | for payments | `whsec_…`. **Per-mode** — a test-mode secret silently rejects every live event |
-| `RESEND_API_KEY` | for email | Without it, nothing is delivered. The app now says so rather than reporting success |
-| `EMAIL_FROM` | for email | e.g. `HomeKin <noreply@yourdomain.com>`. Must be on a domain verified in Resend; the built-in fallback is a domain you do not own and will be rejected |
+| `SMTP_USER` | for email | The sending mailbox, e.g. `you@gmail.com`. Without it and `SMTP_PASS`, nothing is delivered — the app says so rather than reporting success |
+| `SMTP_PASS` | for email | A Google **app password** (16 characters), not your account password |
+| `SMTP_HOST` / `SMTP_PORT` | no | Default to `smtp.gmail.com` and `587`. Set for any other provider |
+| `SMTP_SECURE` | no | Implicit TLS. Inferred from the port (465 → on), so only set to override |
+| `EMAIL_FROM` | no | e.g. `HomeKin <you@gmail.com>`. The address **must** be `SMTP_USER` — Gmail rewrites or rejects anything else. Defaults to `SMTP_USER` |
 | `NEXT_PUBLIC_MAPBOX_TOKEN` | for maps | Public token, URL-restricted to your domain |
 | `MAPBOX_SECRET_TOKEN` | for maps | Secret token scoped to `geocoding`, for server-side address lookups |
 
 Vercel only applies environment variables to **new** deployments — after
 changing one, redeploy.
 
-### Where the confirmation email comes from
+### Email, and why it goes through Gmail
 
-`RESEND_API_KEY` covers what HomeKin sends itself: invite codes, RSVP
-invitations, announcements — **and the signup confirmation email**. With Resend
-configured, signup mints the confirmation link server-side with the Supabase
-admin API and sends it through Resend, so it comes from your verified domain and
-is not subject to Supabase's built-in rate limit. This needs both
-`RESEND_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY`.
+Everything HomeKin sends — invite codes, RSVP invitations, announcements **and the
+signup confirmation email** — goes out over SMTP from `src/lib/email.ts`, pointed
+at Gmail by default.
 
-Without them, signup falls back to Supabase Auth's built-in sender, which is
+Gmail rather than a transactional provider because this app has no domain of its
+own. Sending from a free address is only legitimate through the provider that
+owns it: Gmail, Yahoo and Microsoft all reject or spam-file a `@gmail.com` sender
+relayed by a third party, because gmail.com cannot be SPF/DKIM-aligned for
+anyone else. Resend, Brevo, SendGrid and Mailgun all require a verified domain
+for exactly this reason. Going through `smtp.gmail.com` keeps the family's own
+address as the sender with nothing to buy.
+
+**Setup:** turn on 2-step verification at
+[myaccount.google.com](https://myaccount.google.com/), create an app password
+under **Security → 2-Step Verification → App passwords**, and set `SMTP_USER` to
+the Gmail address and `SMTP_PASS` to the 16 characters it gives you. Your
+ordinary account password will not work.
+
+**The limit that matters:** free Gmail allows **500 recipients per day**, counting
+every To, Cc and Bcc address. Announcements go out in batches of 45 BCC
+recipients per message, so one announcement to 90 people spends 92 of the day's
+quota. Exceed it and Gmail returns "Daily user sending limit exceeded" and holds
+the account until the window clears. That cap, not deliverability, is what will
+eventually push this app onto a real domain.
+
+Signup confirmation additionally needs `SUPABASE_SERVICE_ROLE_KEY`, since the
+link is minted with the Supabase admin API. Without both that and SMTP
+credentials, signup falls back to Supabase Auth's built-in sender, which is
 rate-limited to a handful of messages per hour from a shared domain and reliably
 lands in spam — the usual reason a confirmation email "never arrives". If you
 rely on the fallback, configure custom SMTP under **Supabase → Authentication →
 Emails → SMTP Settings**, and add your production domain to **URL Configuration
 → Redirect URLs** or confirmation links lose their invite code.
+
+**Switching to Resend** once you own a domain: `src/lib/email.ts` keeps the
+Resend implementation commented out at the bottom with instructions. It is the
+better option at that point — no daily quota, real bounce handling, and a `From`
+that is not somebody's personal mailbox.
 
 Either way `NEXT_PUBLIC_APP_URL` must be your real origin: the emailed link is
 built from it, never from the browser's, so a stale value sends people to a dead
@@ -178,6 +206,14 @@ recording a negative amount.
 npm test          # unit tests (vitest)
 npm run test:db   # schema + SQL function tests against a throwaway Postgres
 ```
+
+Email delivery is covered end to end: `src/__tests__/email-smtp.test.ts` starts a
+real SMTP server on localhost (`src/__tests__/helpers/smtp-test-server.ts`), sends
+the actual confirmation email through it, and parses what came out the other
+side — sender, envelope recipients, BCC privacy, batch splitting, and that a long
+confirmation link survives quoted-printable encoding intact. It also covers the
+failures: a wrong app password, a refused recipient, and a dead port. No network
+and no credentials needed.
 
 `npm run test:db` needs a local Postgres (`apt install postgresql-16`). It
 creates a temporary cluster, applies every migration from scratch, and asserts

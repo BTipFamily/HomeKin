@@ -119,7 +119,7 @@ export async function createAnnouncement(
     return {
       status: 'warning',
       message:
-        'Announcement posted, but no email went out — email is not set up yet (RESEND_API_KEY is missing).',
+        'Announcement posted, but no email went out — email is not set up yet (SMTP_USER and SMTP_PASS are missing).',
     }
   }
   if (result.failed > 0) {
