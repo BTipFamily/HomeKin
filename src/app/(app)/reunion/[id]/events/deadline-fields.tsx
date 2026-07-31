@@ -115,7 +115,18 @@ export default function DeadlineFields({ existing = [] }: DeadlineFieldsProps) {
         </p>
       </div>
 
-      {rows.map((row, index) => (
+      {rows.map((row, index) => {
+        // A row counts as started the moment anything is typed into it. Once it
+        // has, the browser enforces the rest before the form will submit, which
+        // puts the complaint on the field itself rather than making somebody
+        // save, wait, and read a message about "Deadline 1". A row left
+        // untouched stays optional and is ignored on save, so clicking "Add
+        // deadline" and changing your mind is not a trap.
+        const started =
+          row.label.trim() !== '' || row.dueDate !== '' || row.amountValue.trim() !== ''
+        const needsAmount = started && row.amountType !== 'remainder'
+
+        return (
         <div key={index} className="space-y-2 rounded-md border bg-muted/30 p-3">
           <input type="hidden" name="deadline_id" value={row.id} />
 
@@ -127,6 +138,7 @@ export default function DeadlineFields({ existing = [] }: DeadlineFieldsProps) {
               <Input
                 id={`deadline_label_${index}`}
                 name="deadline_label"
+                required={started}
                 value={row.label}
                 onChange={(e) => update(index, { label: e.target.value })}
                 placeholder="Deposit"
@@ -140,6 +152,7 @@ export default function DeadlineFields({ existing = [] }: DeadlineFieldsProps) {
                 id={`deadline_due_date_${index}`}
                 name="deadline_due_date"
                 type="date"
+                required={started}
                 value={row.dueDate}
                 onChange={(e) => update(index, { dueDate: e.target.value })}
               />
@@ -182,6 +195,7 @@ export default function DeadlineFields({ existing = [] }: DeadlineFieldsProps) {
                 type={row.amountType === 'remainder' ? 'text' : 'number'}
                 step={row.amountType === 'percent' ? '1' : '0.01'}
                 min="0"
+                required={needsAmount}
                 value={row.amountType === 'remainder' ? '' : row.amountValue}
                 onChange={(e) => update(index, { amountValue: e.target.value })}
                 readOnly={row.amountType === 'remainder'}
@@ -218,7 +232,8 @@ export default function DeadlineFields({ existing = [] }: DeadlineFieldsProps) {
             </Button>
           </div>
         </div>
-      ))}
+        )
+      })}
 
       {errors.length > 0 && (
         <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3">
