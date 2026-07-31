@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ArrowLeft } from 'lucide-react'
 import { createSubEvent } from '@/lib/actions/sub-events'
 import DeadlineFields from '../deadline-fields'
+import EventFormShell from '../event-form-shell'
 
 interface NewEventPageProps {
   params: Promise<{ id: string }>
@@ -35,11 +36,6 @@ export default async function NewEventPage({ params }: NewEventPageProps) {
     .eq('id', id)
     .single()
 
-  async function handleCreate(formData: FormData) {
-    'use server'
-    await createSubEvent(id, formData)
-  }
-
   return (
     <div className="mx-auto max-w-xl px-4 py-8 sm:px-6">
       <Button variant="ghost" size="sm" asChild className="mb-4 -ml-2">
@@ -57,7 +53,11 @@ export default async function NewEventPage({ params }: NewEventPageProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={handleCreate} className="space-y-4">
+          <EventFormShell
+            action={createSubEvent.bind(null, id)}
+            submitLabel="Create Event"
+            cancelHref={`/reunion/${id}/events`}
+          >
             <div className="space-y-2">
               <Label htmlFor="name">Event Name *</Label>
               <Input id="name" name="name" required placeholder="Family Cookout" />
@@ -149,14 +149,7 @@ export default async function NewEventPage({ params }: NewEventPageProps) {
             </div>
 
             <DeadlineFields />
-
-            <div className="flex gap-3 pt-2">
-              <Button type="submit">Create Event</Button>
-              <Button type="button" variant="outline" asChild>
-                <Link href={`/reunion/${id}/events`}>Cancel</Link>
-              </Button>
-            </div>
-          </form>
+          </EventFormShell>
         </CardContent>
       </Card>
     </div>

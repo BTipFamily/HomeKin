@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from 'lucide-react'
 import { updateSubEvent } from '@/lib/actions/sub-events'
 import DeadlineFields from '../../deadline-fields'
+import EventFormShell from '../../event-form-shell'
 import type { EventDeadline } from '@/types/database'
 
 interface EditEventPageProps {
@@ -45,12 +46,6 @@ export default async function EditEventPage({ params }: EditEventPageProps) {
     .eq('sub_event_id', eventId)
     .order('due_date')
 
-  async function handleUpdate(formData: FormData) {
-    'use server'
-    await updateSubEvent(eventId, id, formData)
-    redirect(`/reunion/${id}/events/${eventId}`)
-  }
-
   return (
     <div className="mx-auto max-w-xl px-4 py-8 sm:px-6">
       <Button variant="ghost" size="sm" asChild className="mb-4 -ml-2">
@@ -65,7 +60,11 @@ export default async function EditEventPage({ params }: EditEventPageProps) {
           <CardTitle>Edit Event</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={handleUpdate} className="space-y-4">
+          <EventFormShell
+            action={updateSubEvent.bind(null, eventId, id)}
+            submitLabel="Save Changes"
+            cancelHref={`/reunion/${id}/events/${eventId}`}
+          >
             <div className="space-y-2">
               <Label htmlFor="name">Event Name *</Label>
               <Input id="name" name="name" required defaultValue={event.name} />
@@ -158,14 +157,7 @@ export default async function EditEventPage({ params }: EditEventPageProps) {
             </div>
 
             <DeadlineFields existing={(deadlines ?? []) as EventDeadline[]} />
-
-            <div className="flex gap-3 pt-2">
-              <Button type="submit">Save Changes</Button>
-              <Button type="button" variant="outline" asChild>
-                <Link href={`/reunion/${id}/events/${eventId}`}>Cancel</Link>
-              </Button>
-            </div>
-          </form>
+          </EventFormShell>
         </CardContent>
       </Card>
     </div>

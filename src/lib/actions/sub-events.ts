@@ -9,6 +9,14 @@ import {
   validateDeadlines,
   type DeadlineInput,
 } from '@/lib/payment-schedule'
+import type { EventFormState } from '@/lib/event-form'
+
+function failed(e: unknown): EventFormState {
+  return {
+    status: 'error',
+    message: e instanceof Error ? e.message : 'The event could not be saved.',
+  }
+}
 
 /**
  * Reads the deadline rows off the form and refuses the save if they do not hang
@@ -81,161 +89,183 @@ export async function deleteSubEvent(eventId: string, reunionId: string) {
   redirect(`/reunion/${reunionId}/events`)
 }
 
-export async function createSubEvent(reunionId: string, formData: FormData) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
+export async function createSubEvent(
+  reunionId: string,
+  _prevState: EventFormState,
+  formData: FormData
+): Promise<EventFormState> {
+  let createdId: string
 
-  const { data: member } = await supabase
-    .from('members')
-    .select('id, role')
-    .eq('auth_user_id', user.id)
-    .single()
-  if (!member || !['committee', 'admin'].includes(member.role)) {
-    throw new Error('Committee or admin access required')
-  }
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
 
-  const name = formData.get('name') as string
-  const description = formData.get('description') as string
-  const date = formData.get('date') as string
-  const time = formData.get('time') as string
-  const locationName = formData.get('location_name') as string
-  const address = formData.get('address') as string
-  const costRaw = formData.get('cost_per_person') as string
-  const capacityRaw = formData.get('capacity') as string
-  const durationRaw = formData.get('duration_minutes') as string
-
-  const cost = parseFloat(costRaw) || 0
-  const capacity = capacityRaw ? parseInt(capacityRaw) : null
-  const durationMinutes = durationRaw ? parseInt(durationRaw) : null
-
-  if (cost < 0) throw new Error('Cost cannot be negative')
-  if (capacity !== null && capacity < 1) throw new Error('Capacity must be at least 1')
-
-  const deadlines = readDeadlines(formData, date || null)
-
-  const normalizedAddress = address || null
-  const geoFields: Record<string, unknown> = {}
-  if (normalizedAddress) {
-    const result = await geocodeAddress(normalizedAddress)
-    geoFields.latitude = result?.lat ?? null
-    geoFields.longitude = result?.lng ?? null
-    geoFields.geocoded_address = result ? normalizedAddress : null
-    geoFields.geocode_updated_at = new Date().toISOString()
-  }
-
-  const { data, error } = await supabase
-    .from('sub_events')
-    .insert({
-      reunion_id: reunionId,
-      name,
-      description: description || null,
-      date,
-      time: time || null,
-      location_name: locationName || null,
-      address: normalizedAddress,
-      cost_per_person: cost,
-      capacity,
-      duration_minutes: durationMinutes,
-      created_by: member.id,
-      ...geoFields,
-    })
-    .select('id')
-    .single()
-
-  if (error) throw new Error(error.message)
-
-  if (deadlines.length > 0) {
-    const { error: deadlineError } = await supabase
-      .from('event_deadlines')
-      .insert(deadlines.map((d, i) => deadlineRow(d, data.id, i)))
-
-    // The event exists at this point, so the committee is told what went wrong
-    // rather than being bounced back to a form that would create a second one.
-    if (deadlineError) {
-      throw new Error(
-        `The event was created, but its payment deadlines were not saved. ${explainDeadlineError(deadlineError)}`
-      )
+    const { data: member } = await supabase
+      .from('members')
+      .select('id, role')
+      .eq('auth_user_id', user.id)
+      .single()
+    if (!member || !['committee', 'admin'].includes(member.role)) {
+      throw new Error('Committee or admin access required')
     }
-  }
 
-  revalidatePath(`/reunion/${reunionId}/events`)
-  revalidatePath(`/reunion/${reunionId}/map`)
-  redirect(`/reunion/${reunionId}/events/${data.id}`)
-}
+    const name = formData.get('name') as string
+    const description = formData.get('description') as string
+    const date = formData.get('date') as string
+    const time = formData.get('time') as string
+    const locationName = formData.get('location_name') as string
+    const address = formData.get('address') as string
+    const costRaw = formData.get('cost_per_person') as string
+    const capacityRaw = formData.get('capacity') as string
+    const durationRaw = formData.get('duration_minutes') as string
 
-export async function updateSubEvent(eventId: string, reunionId: string, formData: FormData) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
+    const cost = parseFloat(costRaw) || 0
+    const capacity = capacityRaw ? parseInt(capacityRaw) : null
+    const durationMinutes = durationRaw ? parseInt(durationRaw) : null
 
-  const name = formData.get('name') as string
-  const description = formData.get('description') as string
-  const date = formData.get('date') as string
-  const time = formData.get('time') as string
-  const locationName = formData.get('location_name') as string
-  const address = formData.get('address') as string
-  const costRaw = formData.get('cost_per_person') as string
-  const capacityRaw = formData.get('capacity') as string
-  const durationRaw = formData.get('duration_minutes') as string
+    if (cost < 0) throw new Error('Cost cannot be negative')
+    if (capacity !== null && capacity < 1) throw new Error('Capacity must be at least 1')
 
-  const cost = parseFloat(costRaw) || 0
-  const capacity = capacityRaw ? parseInt(capacityRaw) : null
-  const durationMinutes = durationRaw ? parseInt(durationRaw) : null
+    const deadlines = readDeadlines(formData, date || null)
 
-  const deadlines = readDeadlines(formData, date || null)
-
-  const normalizedAddress = address || null
-
-  const { data: existing } = await supabase
-    .from('sub_events')
-    .select('geocoded_address')
-    .eq('id', eventId)
-    .single()
-
-  const geoFields: Record<string, unknown> = {}
-  if (normalizedAddress !== existing?.geocoded_address) {
+    const normalizedAddress = address || null
+    const geoFields: Record<string, unknown> = {}
     if (normalizedAddress) {
       const result = await geocodeAddress(normalizedAddress)
       geoFields.latitude = result?.lat ?? null
       geoFields.longitude = result?.lng ?? null
       geoFields.geocoded_address = result ? normalizedAddress : null
       geoFields.geocode_updated_at = new Date().toISOString()
-    } else {
-      geoFields.latitude = null
-      geoFields.longitude = null
-      geoFields.geocoded_address = null
-      geoFields.geocode_updated_at = null
     }
+
+    const { data, error } = await supabase
+      .from('sub_events')
+      .insert({
+        reunion_id: reunionId,
+        name,
+        description: description || null,
+        date,
+        time: time || null,
+        location_name: locationName || null,
+        address: normalizedAddress,
+        cost_per_person: cost,
+        capacity,
+        duration_minutes: durationMinutes,
+        created_by: member.id,
+        ...geoFields,
+      })
+      .select('id')
+      .single()
+
+    if (error) throw new Error(error.message)
+
+    if (deadlines.length > 0) {
+      const { error: deadlineError } = await supabase
+        .from('event_deadlines')
+        .insert(deadlines.map((d, i) => deadlineRow(d, data.id, i)))
+
+      // The event exists at this point, so the committee is told what went wrong
+      // rather than being bounced back to a form that would create a second one.
+      if (deadlineError) {
+        throw new Error(
+          `The event was created, but its payment deadlines were not saved. ${explainDeadlineError(deadlineError)}`
+        )
+      }
+    }
+    createdId = data.id as string
+  } catch (e) {
+    return failed(e)
   }
 
-  const { error } = await supabase
-    .from('sub_events')
-    .update({
-      name,
-      description: description || null,
-      date,
-      time: time || null,
-      location_name: locationName || null,
-      address: normalizedAddress,
-      cost_per_person: cost,
-      capacity,
-      duration_minutes: durationMinutes,
-      ...geoFields,
-    })
-    .eq('id', eventId)
+  revalidatePath(`/reunion/${reunionId}/events`)
+  revalidatePath(`/reunion/${reunionId}/map`)
+  // Outside the try: redirect signals itself by throwing, so catching it here
+  // would turn every successful save into an error message.
+  redirect(`/reunion/${reunionId}/events/${createdId}`)
+}
 
-  if (error) throw new Error(error.message)
+export async function updateSubEvent(
+  eventId: string,
+  reunionId: string,
+  _prevState: EventFormState,
+  formData: FormData
+): Promise<EventFormState> {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
 
-  await syncDeadlines(eventId, deadlines)
+    const name = formData.get('name') as string
+    const description = formData.get('description') as string
+    const date = formData.get('date') as string
+    const time = formData.get('time') as string
+    const locationName = formData.get('location_name') as string
+    const address = formData.get('address') as string
+    const costRaw = formData.get('cost_per_person') as string
+    const capacityRaw = formData.get('capacity') as string
+    const durationRaw = formData.get('duration_minutes') as string
+
+    const cost = parseFloat(costRaw) || 0
+    const capacity = capacityRaw ? parseInt(capacityRaw) : null
+    const durationMinutes = durationRaw ? parseInt(durationRaw) : null
+
+    const deadlines = readDeadlines(formData, date || null)
+
+    const normalizedAddress = address || null
+
+    const { data: existing } = await supabase
+      .from('sub_events')
+      .select('geocoded_address')
+      .eq('id', eventId)
+      .single()
+
+    const geoFields: Record<string, unknown> = {}
+    if (normalizedAddress !== existing?.geocoded_address) {
+      if (normalizedAddress) {
+        const result = await geocodeAddress(normalizedAddress)
+        geoFields.latitude = result?.lat ?? null
+        geoFields.longitude = result?.lng ?? null
+        geoFields.geocoded_address = result ? normalizedAddress : null
+        geoFields.geocode_updated_at = new Date().toISOString()
+      } else {
+        geoFields.latitude = null
+        geoFields.longitude = null
+        geoFields.geocoded_address = null
+        geoFields.geocode_updated_at = null
+      }
+    }
+
+    const { error } = await supabase
+      .from('sub_events')
+      .update({
+        name,
+        description: description || null,
+        date,
+        time: time || null,
+        location_name: locationName || null,
+        address: normalizedAddress,
+        cost_per_person: cost,
+        capacity,
+        duration_minutes: durationMinutes,
+        ...geoFields,
+      })
+      .eq('id', eventId)
+
+    if (error) throw new Error(error.message)
+    await syncDeadlines(eventId, deadlines)
+  } catch (e) {
+    return failed(e)
+  }
 
   revalidatePath(`/reunion/${reunionId}/events/${eventId}`)
   revalidatePath(`/reunion/${reunionId}/events`)
   revalidatePath(`/reunion/${reunionId}/map`)
+  redirect(`/reunion/${reunionId}/events/${eventId}`)
 }
 
 /**

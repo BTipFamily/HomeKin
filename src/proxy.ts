@@ -34,16 +34,20 @@ export async function proxy(request: NextRequest) {
 
   // Public paths that don't require auth. /api/webhooks is called
   // server-to-server by Stripe (authenticated via signature verification,
-  // never a session cookie) and /api/rsvp is opened by invitees who may
+  // never a session cookie), /api/rsvp is opened by invitees who may
   // not have an account yet (authenticated by the unguessable token in
-  // the URL) — both would otherwise get redirected to /login before their
-  // handler ever runs.
+  // the URL), and /api/cron is called by Vercel Cron (authenticated by the
+  // CRON_SECRET bearer token) — all three would otherwise get redirected to
+  // /login before their handler ever runs. For the cron that failure is
+  // completely silent: the scheduler follows the redirect, gets a 200 from the
+  // login page, records a successful run, and not one reminder goes out.
   const isPublicPath =
     pathname.startsWith('/login') ||
     pathname.startsWith('/signup') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/webhooks') ||
     pathname.startsWith('/api/rsvp') ||
+    pathname.startsWith('/api/cron') ||
     pathname === '/'
 
   if (!user && !isPublicPath) {
