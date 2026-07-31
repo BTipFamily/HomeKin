@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, Plus, Trash2 } from 'lucide-react'
+import { validateDeadlines } from '@/lib/payment-schedule'
 import type { EventDeadline } from '@/types/database'
 
 /**
@@ -59,6 +60,41 @@ interface DeadlineFieldsProps {
 
 export default function DeadlineFields({ existing = [] }: DeadlineFieldsProps) {
   const [rows, setRows] = useState<Row[]>(existing.map(toRow))
+
+  /**
+   * The same validation the server runs, shown as the committee types.
+   *
+   * Without this the server's messages were unreachable: a thrown Server Action
+   * renders Next's generic "a server error occurred" with the reason stripped,
+   * so "the percentages add up to 115%" was written, thrown, and never seen by
+   * anybody. The server still validates — this is the copy that gets read.
+   *
+   * The event's own date is not checked here, because it lives in a sibling
+   * field this component cannot see. The server still catches a deadline that
+   * falls after the event.
+   */
+  const errors = useMemo(
+    () =>
+      validateDeadlines(
+        rows.map((row) => ({
+          id: row.id || null,
+          label: row.label,
+          due_date: row.dueDate,
+          amount_type: row.amountType,
+          amount_value:
+            row.amountType === 'remainder' || row.amountValue.trim() === ''
+              ? null
+              : Number(row.amountValue),
+          reminder_offsets: row.reminderOffsets
+            .split(/[,\s]+/)
+            .filter(Boolean)
+            .map(Number)
+            .filter((n) => Number.isFinite(n)),
+        })),
+        null
+      ),
+    [rows]
+  )
 
   function update(index: number, patch: Partial<Row>) {
     setRows((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)))
@@ -134,15 +170,23 @@ export default function DeadlineFields({ existing = [] }: DeadlineFieldsProps) {
               <Label className="text-xs" htmlFor={`deadline_amount_value_${index}`}>
                 {row.amountType === 'percent' ? 'Percent' : 'Amount ($)'}
               </Label>
+              {/*
+                readOnly, never disabled. A disabled input is not submitted at
+                all, which knocks this field's array out of step with the other
+                five and makes the parser pair a label with the wrong amount —
+                or drop a deadline entirely.
+              */}
               <Input
                 id={`deadline_amount_value_${index}`}
                 name="deadline_amount_value"
-                type="number"
+                type={row.amountType === 'remainder' ? 'text' : 'number'}
                 step={row.amountType === 'percent' ? '1' : '0.01'}
                 min="0"
                 value={row.amountType === 'remainder' ? '' : row.amountValue}
                 onChange={(e) => update(index, { amountValue: e.target.value })}
-                disabled={row.amountType === 'remainder'}
+                readOnly={row.amountType === 'remainder'}
+                aria-disabled={row.amountType === 'remainder'}
+                className={row.amountType === 'remainder' ? 'bg-muted text-muted-foreground' : ''}
                 placeholder={row.amountType === 'percent' ? '25' : '50.00'}
               />
             </div>
@@ -175,6 +219,20 @@ export default function DeadlineFields({ existing = [] }: DeadlineFieldsProps) {
           </div>
         </div>
       ))}
+
+      {errors.length > 0 && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3">
+          <p className="flex items-center gap-1.5 text-sm font-medium text-destructive">
+            <AlertTriangle className="h-4 w-4" />
+            Fix these before saving
+          </p>
+          <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-sm text-destructive">
+            {errors.map((error) => (
+              <li key={error}>{error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <Button
         type="button"

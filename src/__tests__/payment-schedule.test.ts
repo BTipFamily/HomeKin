@@ -656,6 +656,43 @@ describe('parseDeadlinesFromForm', () => {
     expect(parseDeadlinesFromForm(new FormData())).toEqual([])
   })
 
+  test('a row whose amount field went missing is still returned, not silently dropped', () => {
+    // The regression: the "whatever is left" row used a disabled input, and a
+    // disabled input is not submitted at all. The amounts array came back one
+    // entry short, and taking the shortest array meant the committee's final
+    // checkpoint disappeared with no error. Losing it quietly is the worst
+    // possible outcome, so a short array must now surface as a bad row.
+    const data = new FormData()
+    for (const row of [
+      { label: 'Deposit', due: '2026-03-01', type: 'percent', value: '25' },
+      { label: 'Balance', due: '2026-07-01', type: 'remainder', value: null },
+    ]) {
+      data.append('deadline_id', '')
+      data.append('deadline_label', row.label)
+      data.append('deadline_due_date', row.due)
+      data.append('deadline_amount_type', row.type)
+      if (row.value !== null) data.append('deadline_amount_value', row.value)
+      data.append('deadline_reminder_offsets', '14')
+    }
+
+    const parsed = parseDeadlinesFromForm(data)
+    expect(parsed).toHaveLength(2)
+    expect(parsed[1]).toMatchObject({ label: 'Balance', amount_type: 'remainder' })
+  })
+
+  test('a truncated form surfaces as a validation error rather than a lost deadline', () => {
+    const data = new FormData()
+    data.append('deadline_label', 'Deposit')
+    data.append('deadline_label', 'Balance')
+    data.append('deadline_due_date', '2026-03-01')
+    data.append('deadline_amount_type', 'percent')
+    data.append('deadline_amount_value', '25')
+
+    const parsed = parseDeadlinesFromForm(data)
+    expect(parsed).toHaveLength(2)
+    expect(validateDeadlines(parsed, '2026-08-01').length).toBeGreaterThan(0)
+  })
+
   test('ignores a row left completely blank', () => {
     const parsed = parseDeadlinesFromForm(
       form([

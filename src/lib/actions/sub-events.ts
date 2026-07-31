@@ -26,6 +26,25 @@ function readDeadlines(formData: FormData, eventDate: string | null): DeadlineIn
   return deadlines
 }
 
+/**
+ * Turns a Postgres error into something the committee can act on.
+ *
+ * 42P01 is "relation does not exist", which here means one thing: migration
+ * 017 has not been applied to this Supabase project. Left raw it surfaces as
+ * Next's generic "a server error occurred", which says nothing and sends
+ * somebody hunting through logs for a one-line fix.
+ */
+function explainDeadlineError(error: { code?: string; message: string }): string {
+  if (error.code === '42P01') {
+    return (
+      'Payment deadlines need a database update that has not been applied yet. ' +
+      'Ask whoever manages the Supabase project to run migration ' +
+      '017_event_deadlines.sql, then try again.'
+    )
+  }
+  return error.message
+}
+
 function deadlineRow(deadline: DeadlineInput, eventId: string, index: number) {
   return {
     sub_event_id: eventId,
@@ -137,7 +156,7 @@ export async function createSubEvent(reunionId: string, formData: FormData) {
     // rather than being bounced back to a form that would create a second one.
     if (deadlineError) {
       throw new Error(
-        `The event was created, but its payment deadlines were not saved: ${deadlineError.message}`
+        `The event was created, but its payment deadlines were not saved. ${explainDeadlineError(deadlineError)}`
       )
     }
   }
@@ -231,10 +250,15 @@ export async function updateSubEvent(eventId: string, reunionId: string, formDat
 async function syncDeadlines(eventId: string, deadlines: DeadlineInput[]) {
   const service = createServiceClient()
 
-  const { data: current } = await service
+  const { data: current, error: readError } = await service
     .from('event_deadlines')
     .select('id')
     .eq('sub_event_id', eventId)
+
+  // Checked rather than ignored: a missing table read as "no existing rows"
+  // would make the reconcile below look like a clean insert and fail later with
+  // something far less obvious.
+  if (readError) throw new Error(explainDeadlineError(readError))
 
   const submittedIds = new Set(deadlines.map((d) => d.id).filter(Boolean) as string[])
   const removed = ((current ?? []) as { id: string }[])
@@ -243,7 +267,7 @@ async function syncDeadlines(eventId: string, deadlines: DeadlineInput[]) {
 
   if (removed.length > 0) {
     const { error } = await service.from('event_deadlines').delete().in('id', removed)
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(explainDeadlineError(error))
   }
 
   for (const [index, deadline] of deadlines.entries()) {
@@ -258,6 +282,6 @@ async function syncDeadlines(eventId: string, deadlines: DeadlineInput[]) {
       ? await service.from('event_deadlines').update(row).eq('id', deadline.id)
       : await service.from('event_deadlines').insert(row)
 
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(explainDeadlineError(error))
   }
 }

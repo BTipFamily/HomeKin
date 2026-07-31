@@ -378,10 +378,15 @@ export function parseReminderOffsets(raw: string): number[] {
  * Pulls the repeating deadline rows out of a submitted event form.
  *
  * The fields are posted as parallel arrays — every row contributes one entry to
- * each — so their order is what pairs a label with its date. Rows are added and
- * removed together on the client, which keeps the arrays the same length; a
- * short array here would mean the form was tampered with, so anything past the
- * end of the shortest is dropped rather than paired with an empty string.
+ * each — so their position is what pairs a label with its date and amount.
+ *
+ * The row count comes from the labels, not from the shortest array. Taking the
+ * shortest silently discarded whole deadlines: a `disabled` input is not
+ * submitted at all, so a single "whatever is left" row left the amounts array
+ * one entry short and the committee's last checkpoint vanished without a word.
+ * The form no longer disables anything, and reading past the end of a short
+ * array now yields a blank that validation rejects out loud — losing a
+ * checkpoint quietly is far worse than refusing to save.
  *
  * Entirely blank rows are ignored, so a committee member who clicks "Add
  * deadline" and changes their mind does not get a validation error.
@@ -396,16 +401,15 @@ export function parseDeadlinesFromForm(formData: FormData): DeadlineInput[] {
   const values = text('deadline_amount_value')
   const offsets = text('deadline_reminder_offsets')
 
-  const count = Math.min(labels.length, dates.length, types.length, values.length)
   const rows: DeadlineInput[] = []
 
-  for (let i = 0; i < count; i += 1) {
-    const label = labels[i].trim()
-    const due = dates[i].trim()
+  for (let i = 0; i < labels.length; i += 1) {
+    const label = (labels[i] ?? '').trim()
+    const due = (dates[i] ?? '').trim()
     if (!label && !due) continue
 
     const amountType = (
-      ['percent', 'fixed_per_person', 'remainder'].includes(types[i])
+      ['percent', 'fixed_per_person', 'remainder'].includes(types[i] ?? '')
         ? types[i]
         : 'percent'
     ) as Deadline['amount_type']
