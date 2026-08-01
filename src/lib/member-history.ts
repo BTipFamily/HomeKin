@@ -8,6 +8,7 @@
 // same shape. Pure, so it can be unit-tested without a database.
 
 import { toCsv } from '@/lib/csv'
+import { formatPaymentMethod } from '@/lib/stripe-payment-method'
 import type { PaymentMethod, PaymentStatus, SignupStatus } from '@/types/database'
 
 export type HistorySignup = {
@@ -34,6 +35,7 @@ export type HistoryPayment = {
   status: PaymentStatus
   paid_at: string
   note: string | null
+  stripe_payment_method?: string | null
 }
 
 export type HistoryEvent = {
@@ -273,7 +275,8 @@ function describePayments(payments: HistoryPayment[]): string {
     .map((p) => {
       const when = p.paid_at.slice(0, 10)
       const pending = p.status === 'pending' ? ' (pending)' : ''
-      return `${when} ${p.amount < 0 ? '-' : ''}$${Math.abs(p.amount).toFixed(2)} ${p.method}${pending}`
+      const how = formatPaymentMethod(p.method, p.stripe_payment_method)
+      return `${when} ${p.amount < 0 ? '-' : ''}$${Math.abs(p.amount).toFixed(2)} ${how}${pending}`
     })
     .join('; ')
 }

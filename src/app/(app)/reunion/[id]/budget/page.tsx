@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, TrendingUp, AlertCircle, Clock, FileText } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import { formatPaymentMethod } from '@/lib/stripe-payment-method'
 import { BalanceBadge } from '@/components/member-history-view'
 import type { Payment } from '@/types/database'
 import PaymentRow from './payment-row'
@@ -253,7 +254,8 @@ export default async function PaymentsPage({ params }: BudgetPageProps) {
                         {balancePayments.map((payment) => (
                           <li key={payment.id} className="flex items-center justify-between gap-2">
                             <span>
-                              {payment.paid_at.slice(0, 10)} · {payment.method}
+                              {payment.paid_at.slice(0, 10)} ·{' '}
+                              {formatPaymentMethod(payment.method, payment.stripe_payment_method)}
                               {payment.status === 'pending' ? ' · awaiting confirmation' : ''}
                               {payment.note ? ` · ${payment.note}` : ''}
                             </span>

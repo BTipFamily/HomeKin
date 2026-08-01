@@ -2,10 +2,36 @@ import { NextRequest } from 'next/server'
 import type Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
 import { sendReceipt } from '@/lib/statements'
+import { stripePaymentMethodSlug } from '@/lib/stripe-payment-method'
 import { createServiceClient } from '@/lib/supabase/server'
 
 // Stripe requires the raw body for signature verification — do not parse JSON first
 export const dynamic = 'force-dynamic'
+
+/**
+ * Which method Stripe actually charged — 'apple_pay', 'cashapp', 'card', …
+ *
+ * The webhook's session object carries no payment method details, so this is a
+ * second call to Stripe. It is allowed to fail: a null here costs a label on
+ * the budget page, whereas letting it throw would fail the whole handler, and
+ * a non-2xx makes Stripe redeliver the event. The amount recorded must never
+ * depend on this lookup succeeding.
+ */
+async function lookupPaymentMethod(sessionId: string): Promise<string | null> {
+  try {
+    const full = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['payment_intent.payment_method'],
+    })
+    const intent = full.payment_intent
+    if (!intent || typeof intent === 'string') return null
+    const method = intent.payment_method
+    if (!method || typeof method === 'string') return null
+    return stripePaymentMethodSlug(method)
+  } catch (e) {
+    console.error('Stripe webhook: could not read payment method', sessionId, e)
+    return null
+  }
+}
 
 /**
  * Records a completed checkout as a payment.
@@ -36,6 +62,10 @@ async function recordCheckoutPayment(session: Stripe.Checkout.Session): Promise<
     return Response.json({ received: true })
   }
 
+  // Before the insert, so the method is part of the single write the unique
+  // index guards rather than a follow-up update that a replay could repeat.
+  const stripePaymentMethod = await lookupPaymentMethod(session.id)
+
   const service = createServiceClient()
   const { data: inserted, error } = await service
     .from('payments')
@@ -44,10 +74,14 @@ async function recordCheckoutPayment(session: Stripe.Checkout.Session): Promise<
       member_id: memberId,
       reunion_id: reunionId,
       amount,
+      // Stays 'stripe' whatever the wallet was: 'cashapp' here would collide
+      // with a member's unconfirmed manual Cash App report. The specifics live
+      // in stripe_payment_method.
       method: 'stripe',
       status: 'confirmed',
       paid_at: new Date().toISOString(),
       stripe_session_id: session.id,
+      stripe_payment_method: stripePaymentMethod,
     })
     .select('id')
     .single()

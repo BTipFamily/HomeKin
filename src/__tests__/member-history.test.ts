@@ -216,7 +216,7 @@ describe('toReportCsv', () => {
 
   test('summarizes payments in one cell', () => {
     const grid = parseCsv(toReportCsv(rows))
-    expect(grid[1][grid[0].indexOf('payments')]).toBe('2026-06-01 $40.00 zelle')
+    expect(grid[1][grid[0].indexOf('payments')]).toBe('2026-06-01 $40.00 Zelle')
   })
 
   test('marks a pending payment and formats a refund', () => {
@@ -238,8 +238,10 @@ describe('toReportCsv', () => {
 
     const grid = parseCsv(toReportCsv(withRefund))
     const cell = grid[1][grid[0].indexOf('payments')]
-    expect(cell).toContain('-$10.00 stripe')
-    expect(cell).toContain('$50.00 check (pending)')
+    // A Stripe payment with no recorded wallet reads as 'Online payment' —
+    // the committee gets a label, not the raw ledger value.
+    expect(cell).toContain('-$10.00 Online payment')
+    expect(cell).toContain('$50.00 Check (pending)')
   })
 
   test('quotes a member name containing a comma', () => {

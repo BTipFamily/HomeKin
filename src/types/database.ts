@@ -214,6 +214,14 @@ export type Payment = {
   paid_at: string
   note: string | null
   stripe_session_id: string | null
+  /**
+   * Which method Stripe actually charged: 'apple_pay', 'google_pay', 'cashapp',
+   * 'card', … Null for manual payments and for Stripe payments taken before
+   * this was captured. Deliberately a plain string, not a union — Stripe adds
+   * methods, and a union here would turn each new one into a type error on a
+   * value the database is happy to store. Use formatPaymentMethod() to render.
+   */
+  stripe_payment_method: string | null
   recorded_by: string | null
   created_at: string
 }

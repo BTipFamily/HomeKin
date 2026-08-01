@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Check, Loader2, X } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import { formatPaymentMethod } from '@/lib/stripe-payment-method'
 import { confirmPayment, deletePayment } from '@/lib/actions/balances'
 import type { Payment } from '@/types/database'
 
@@ -39,7 +40,8 @@ export default function PaymentRow({
         <div className="min-w-0">
           <p className="text-sm font-medium">{memberName}</p>
           <p className="text-xs text-muted-foreground">
-            {eventName} · {payment.method} · reported {payment.paid_at.slice(0, 10)}
+            {eventName} · {formatPaymentMethod(payment.method, payment.stripe_payment_method)} ·
+            reported {payment.paid_at.slice(0, 10)}
             {payment.note ? ` · ${payment.note}` : ''}
           </p>
         </div>

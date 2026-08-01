@@ -336,7 +336,7 @@ describe('receiptHtml', () => {
   test('confirms the amount, method and what is left', () => {
     const html = receiptHtml(receipt())
     expect(html).toContain('$100.00')
-    expect(html).toContain('Card')
+    expect(html).toContain('Online payment')
     expect(html).toContain('March 1, 2026')
     expect(html).toContain('Still outstanding')
     expect(html).toContain('Pay the rest')
@@ -358,6 +358,19 @@ describe('receiptHtml', () => {
   })
 
   test('falls back to the raw method rather than blank for an unknown one', () => {
-    expect(receiptHtml(receipt({ method: 'barter' }))).toContain('barter')
+    expect(receiptHtml(receipt({ method: 'barter' }))).toContain('Barter')
+  })
+
+  test('names the wallet a member actually paid with', () => {
+    // The whole point of capturing the method: 'Apple Pay' is what the member
+    // will recognise on their statement, where 'Online payment' tells them
+    // nothing they did not already know.
+    const applePay = receiptHtml(receipt({ method: 'stripe', stripePaymentMethod: 'apple_pay' }))
+    expect(applePay).toContain('Apple Pay')
+    expect(applePay).not.toContain('Online payment')
+
+    expect(receiptHtml(receipt({ method: 'stripe', stripePaymentMethod: 'cashapp' }))).toContain(
+      'Cash App Pay'
+    )
   })
 })

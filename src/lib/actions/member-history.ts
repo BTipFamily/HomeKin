@@ -80,7 +80,7 @@ export async function getMemberHistory(memberId: string): Promise<MemberHistory>
       .eq('member_id', memberId),
     service
       .from('payments')
-      .select('id, balance_id, amount, method, status, paid_at, note')
+      .select('id, balance_id, amount, method, status, paid_at, note, stripe_payment_method')
       .eq('member_id', memberId),
     loadContext(),
   ])
@@ -155,7 +155,9 @@ export async function getReunionReport(reunionId: string): Promise<ReunionReport
       .eq('reunion_id', reunionId),
     service
       .from('payments')
-      .select('id, member_id, balance_id, amount, method, status, paid_at, note')
+      .select(
+        'id, member_id, balance_id, amount, method, status, paid_at, note, stripe_payment_method'
+      )
       .eq('reunion_id', reunionId),
     service.from('members').select('id, name, email').order('name'),
     eventIds.length > 0

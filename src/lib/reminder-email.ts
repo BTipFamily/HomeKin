@@ -15,6 +15,7 @@ import {
   totalRow,
   totals as totalsTable,
 } from '@/lib/email-layout'
+import { formatPaymentMethod } from '@/lib/stripe-payment-method'
 
 // ---------------------------------------------------------------------------
 // Deadline reminder
@@ -107,19 +108,18 @@ export type ReceiptInput = {
   /** 'General Fund' when the balance belongs to no particular event. */
   eventName: string
   amount: number
+  /** The ledger value: 'stripe', 'zelle', 'check', … */
   method: string
+  /**
+   * Which method Stripe actually charged, when known — 'apple_pay', 'cashapp'.
+   * Takes precedence over `method` in the receipt, because 'Apple Pay' is what
+   * the member will recognise.
+   */
+  stripePaymentMethod?: string | null
   paidAt: string
   /** What remains on that balance after this payment. */
   remaining: number
   payUrl: string
-}
-
-const METHOD_LABEL: Record<string, string> = {
-  stripe: 'Card',
-  zelle: 'Zelle',
-  cashapp: 'Cash App',
-  check: 'Check',
-  other: 'Other',
 }
 
 export function receiptSubject(input: ReceiptInput): string {
@@ -135,7 +135,7 @@ export function receiptHtml(input: ReceiptInput): string {
 
   const rows = [
     totalRow('Amount', formatMoney(input.amount), true),
-    totalRow('Method', METHOD_LABEL[input.method] ?? input.method),
+    totalRow('Method', formatPaymentMethod(input.method, input.stripePaymentMethod)),
     totalRow('Date', formatDate(input.paidAt)),
     totalRow('Still outstanding', formatMoney(input.remaining)),
   ].join('')

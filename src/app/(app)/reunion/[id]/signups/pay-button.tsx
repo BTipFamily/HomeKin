@@ -39,8 +39,17 @@ export default function PayButton({ balanceId, reunionId }: PayButtonProps) {
         ) : (
           <CreditCard className="mr-2 h-3.5 w-3.5" />
         )}
-        Pay with Card (Stripe)
+        Pay Online
       </Button>
+      {/*
+        Not "Pay with Apple Pay": the wallet buttons are offered by Stripe on
+        the checkout page, and only where the device supports them — Apple Pay
+        on Safari with a card in Wallet, Google Pay in Chrome. Naming one on the
+        button would promise most visitors something they will not be shown.
+      */}
+      <p className="mt-1 text-xs text-muted-foreground">
+        Card, Apple Pay, Google Pay or Cash App Pay.
+      </p>
       {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
     </div>
   )

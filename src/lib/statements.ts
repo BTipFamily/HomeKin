@@ -247,7 +247,9 @@ export async function sendReceipt(paymentId: string): Promise<EmailResult> {
 
   const { data: payment } = await service
     .from('payments')
-    .select('id, member_id, reunion_id, balance_id, amount, method, status, paid_at')
+    .select(
+      'id, member_id, reunion_id, balance_id, amount, method, status, paid_at, stripe_payment_method'
+    )
     .eq('id', paymentId)
     .maybeSingle()
 
@@ -306,6 +308,7 @@ export async function sendReceipt(paymentId: string): Promise<EmailResult> {
     eventName: eventName ?? 'General Fund',
     amount: Number(payment.amount),
     method: payment.method as string,
+    stripePaymentMethod: payment.stripe_payment_method as string | null,
     paidAt: (payment.paid_at as string).slice(0, 10),
     // amount_paid is derived by trigger and already includes this payment, so
     // the difference is what genuinely remains.

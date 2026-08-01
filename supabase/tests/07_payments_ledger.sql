@@ -190,6 +190,43 @@ begin
       where balance_id = '45000000-0000-0000-0000-000000000003') = 1);
 end $$;
 
+-- ---- stripe_payment_method ----
+do $$
+declare v_id uuid;
+begin
+  -- The column is deliberately unconstrained. A CHECK here would mean the day
+  -- Stripe ships a method we have not enumerated, the webhook insert fails, the
+  -- handler 500s, Stripe retries, and money arrives that nothing records. This
+  -- asserts that a method nobody has heard of is still storable.
+  insert into payments (balance_id, member_id, reunion_id, amount, method, status,
+                        stripe_session_id, stripe_payment_method)
+  values ('45000000-0000-0000-0000-000000000001', '15000000-0000-0000-0000-000000000002',
+          '25000000-0000-0000-0000-000000000001', 5, 'stripe', 'confirmed',
+          'cs_test_unknown_method', 'a_method_invented_after_this_test_was_written')
+  returning id into v_id;
+
+  perform assert('an unrecognised Stripe method is stored rather than rejected',
+    (select stripe_payment_method from payments where id = v_id)
+      = 'a_method_invented_after_this_test_was_written');
+
+  -- The wallet detail must not disturb what the ledger is actually for.
+  perform assert('a payment carrying a wallet still counts toward the balance',
+    (select amount_paid from balances where id = '45000000-0000-0000-0000-000000000001') = 105);
+
+  delete from payments where id = v_id;
+  perform assert('removing it restores the balance',
+    (select amount_paid from balances where id = '45000000-0000-0000-0000-000000000001') = 100);
+end $$;
+
+do $$
+begin
+  -- Manual payments have no Stripe detail, and nothing was backfilled: the
+  -- information was never captured, and a guess in the ledger is worse than a null.
+  perform assert('manual payments carry no Stripe method',
+    (select count(*) from payments
+      where method <> 'stripe' and stripe_payment_method is not null) = 0);
+end $$;
+
 -- ---- cascades ----
 do $$
 begin
