@@ -11,6 +11,7 @@ import {
   type LikeRow,
   type PhotoComment,
 } from '@/lib/photo-social'
+import { describeAlbum } from '@/lib/media'
 
 interface PhotosPageProps {
   params: Promise<{ id: string }>
@@ -48,7 +49,11 @@ export default async function PhotosPage({ params }: PhotosPageProps) {
   // it returns a URL that 400s since there's no public access. Generate
   // time-limited signed URLs instead (RLS only requires SELECT on
   // storage.objects, which authenticated members already have).
-  const paths = (photos ?? []).map((p) => p.storage_path)
+  // Videos carry a second object — the poster frame shown in the grid — so
+  // both columns need signing, not just storage_path.
+  const paths = (photos ?? []).flatMap((p) =>
+    p.thumbnail_path ? [p.storage_path, p.thumbnail_path] : [p.storage_path]
+  )
   const { data: signedUrls } =
     paths.length > 0
       ? await supabase.storage.from('photos').createSignedUrls(paths, 60 * 60)
@@ -61,6 +66,7 @@ export default async function PhotosPage({ params }: PhotosPageProps) {
   const photosWithUrls = (photos ?? []).map((photo) => ({
     ...photo,
     public_url: urlByPath[photo.storage_path] ?? '',
+    thumbnail_url: photo.thumbnail_path ? (urlByPath[photo.thumbnail_path] ?? '') : null,
   }))
 
   // Likes and comments for the whole album in one query each, grouped in
@@ -92,7 +98,7 @@ export default async function PhotosPage({ params }: PhotosPageProps) {
             </Link>
           </Button>
           <h1 className="text-2xl font-bold">Photo Album</h1>
-          <p className="text-sm text-muted-foreground">{photosWithUrls.length} photos</p>
+          <p className="text-sm text-muted-foreground">{describeAlbum(photosWithUrls)}</p>
         </div>
       </div>
 

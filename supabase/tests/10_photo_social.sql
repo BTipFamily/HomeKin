@@ -142,10 +142,56 @@ begin
       where body = 'From the duplicate') = '19000000-0000-0000-0000-000000000001');
 end $$;
 
--- ---- reunion delete sweeps everything below it ----
+-- ---- video rows ----
 do $$
 begin
-  delete from reunions where id = '29000000-0000-0000-0000-000000000001';
+  perform assert('rows that predate video default to image',
+    (select count(*) from photos where media_type = 'image') = 1);
+
+  insert into photos (id, reunion_id, uploaded_by, storage_path, media_type,
+                      thumbnail_path, duration_seconds)
+  values ('39000000-0000-0000-0000-000000000003', '29000000-0000-0000-0000-000000000001',
+          '19000000-0000-0000-0000-000000000001',
+          '29000000-0000-0000-0000-000000000001/clip.mp4', 'video',
+          '29000000-0000-0000-0000-000000000001/clip.mp4.poster.jpg', 42);
+
+  perform assert('a video records its poster and duration',
+    (select duration_seconds from photos
+      where id = '39000000-0000-0000-0000-000000000003') = 42);
+
+  begin
+    insert into photos (reunion_id, storage_path, media_type)
+    values ('29000000-0000-0000-0000-000000000001', 'x', 'audio');
+    perform assert('an unknown media type is rejected', false);
+  exception when check_violation then
+    perform assert('an unknown media type is rejected', true);
+  end;
+
+  begin
+    insert into photos (reunion_id, storage_path, media_type, duration_seconds)
+    values ('29000000-0000-0000-0000-000000000001', 'y', 'video', -5);
+    perform assert('a negative duration is rejected', false);
+  exception when check_violation then
+    perform assert('a negative duration is rejected', true);
+  end;
+end $$;
+
+-- ---- reunion delete sweeps everything below it ----
+do $$
+declare v_report jsonb;
+begin
+  set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000001a3';
+  v_report := delete_reunion('29000000-0000-0000-0000-000000000001');
+
+  -- The poster is a second object owned by the same row. Left out of this
+  -- list it would sit in the bucket forever, belonging to a reunion that no
+  -- longer exists and invisible to anything that might notice.
+  perform assert('the reunion delete hands back the video and its poster',
+    v_report -> 'storage_paths' @> '["29000000-0000-0000-0000-000000000001/clip.mp4"]'::jsonb
+    and v_report -> 'storage_paths' @> '["29000000-0000-0000-0000-000000000001/clip.mp4.poster.jpg"]'::jsonb);
+  perform assert('and the still, which has no poster, exactly once',
+    (select count(*) from jsonb_array_elements_text(v_report -> 'storage_paths') p
+      where p = '29000000-0000-0000-0000-000000000001/two.jpg') = 1);
 
   perform assert('deleting a reunion clears its photo likes',
     (select count(*) from photo_likes) = 0);

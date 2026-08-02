@@ -234,6 +234,11 @@ Run them in the Supabase SQL editor (or `supabase db push` if you use the CLI).
 | `014_delete_reunion` | `delete_reunion()` |
 | `015_payments_ledger` | `payments` table; balances derived from it by trigger |
 | `016_presence_and_read_receipts` | `members.last_seen_at`, `read_receipts`, `my_unread_counts()` |
+| `017_event_deadlines` | `event_deadlines` and `email_sends` (which stops a reminder or receipt going out twice) |
+| `018_stripe_payment_method` | `payments.stripe_payment_method` — which wallet a Stripe payment used |
+| `019_photo_comments_and_likes` | `photo_comments`, `photo_likes`; teaches `merge_members()` about both; indexes `photos` |
+| `020_video_uploads` | `photos.media_type`/`thumbnail_path`/`duration_seconds`, video MIME types on the bucket, poster sweep in `delete_reunion()` |
+| `021_photo_delete_permission` | Lets the committee delete a photo, which the UI already offered |
 
 If a feature's button appears but fails when clicked, an unapplied migration is
 the first thing to check — the UI does not gate on schema version.

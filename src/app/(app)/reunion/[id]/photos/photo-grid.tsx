@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Trash2, X, ChevronLeft, ChevronRight, Heart, MessageCircle } from 'lucide-react'
+import { Trash2, X, ChevronLeft, ChevronRight, Heart, MessageCircle, Play } from 'lucide-react'
+import { formatDuration } from '@/lib/media'
 import { Button } from '@/components/ui/button'
 import { deletePhoto } from '@/lib/actions/photos'
 import { EMPTY_LIKE_SUMMARY, type LikeSummary, type PhotoComment } from '@/lib/photo-social'
@@ -15,6 +16,9 @@ interface PhotoWithUrl {
   caption: string | null
   uploaded_by: string | null
   created_at: string
+  media_type?: string | null
+  thumbnail_url?: string | null
+  duration_seconds?: number | null
   uploader?: { id: string; name: string; photo_url: string | null } | null
 }
 
@@ -78,16 +82,47 @@ export function PhotoGrid({
           const commentCount = commentsByPhoto[photo.id]?.length ?? 0
           return (
             <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-lg bg-muted">
-              <img
-                src={photo.public_url}
-                alt={photo.caption ?? 'Reunion photo'}
-                className="h-full w-full cursor-pointer object-cover transition-transform group-hover:scale-105"
-                onClick={() => setLightboxIdx(idx)}
-              />
+              {/* A video tile is its poster plus a play badge, not a <video>:
+                  loading metadata for every clip in the album to render a
+                  thumbnail costs far more than the poster JPEG does. The
+                  fallback covers a video whose poster capture failed. */}
+              {photo.media_type === 'video' && !photo.thumbnail_url ? (
+                <video
+                  src={`${photo.public_url}#t=0.1`}
+                  preload="metadata"
+                  muted
+                  playsInline
+                  className="h-full w-full cursor-pointer object-cover"
+                  onClick={() => setLightboxIdx(idx)}
+                />
+              ) : (
+                <img
+                  src={photo.media_type === 'video' ? photo.thumbnail_url! : photo.public_url}
+                  alt={photo.caption ?? (photo.media_type === 'video' ? 'Reunion video' : 'Reunion photo')}
+                  className="h-full w-full cursor-pointer object-cover transition-transform group-hover:scale-105"
+                  onClick={() => setLightboxIdx(idx)}
+                />
+              )}
+
+              {photo.media_type === 'video' && (
+                <div
+                  className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                  onClick={() => setLightboxIdx(idx)}
+                >
+                  <span className="rounded-full bg-black/50 p-2">
+                    <Play className="h-5 w-5 fill-white text-white" />
+                  </span>
+                  {formatDuration(photo.duration_seconds ?? null) && (
+                    <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1 text-[11px] text-white">
+                      {formatDuration(photo.duration_seconds ?? null)}
+                    </span>
+                  )}
+                </div>
+              )}
               {canDelete && (
                 <form
                   action={async () => {
-                    await deletePhoto(photo.id, reunionId, photo.storage_path)
+                    await deletePhoto(photo.id, reunionId)
                   }}
                   className="absolute right-1 top-1 hidden group-hover:block"
                 >
@@ -155,11 +190,24 @@ export function PhotoGrid({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="min-w-0 flex-1">
-              <img
-                src={photos[lightboxIdx].public_url}
-                alt={photos[lightboxIdx].caption ?? ''}
-                className="max-h-[60vh] w-full rounded-lg object-contain sm:max-h-[80vh]"
-              />
+              {photos[lightboxIdx].media_type === 'video' ? (
+                <video
+                  key={photos[lightboxIdx].id}
+                  src={photos[lightboxIdx].public_url}
+                  poster={photos[lightboxIdx].thumbnail_url ?? undefined}
+                  controls
+                  autoPlay
+                  playsInline
+                  preload="metadata"
+                  className="max-h-[60vh] w-full rounded-lg bg-black object-contain sm:max-h-[80vh]"
+                />
+              ) : (
+                <img
+                  src={photos[lightboxIdx].public_url}
+                  alt={photos[lightboxIdx].caption ?? ''}
+                  className="max-h-[60vh] w-full rounded-lg object-contain sm:max-h-[80vh]"
+                />
+              )}
               {photos[lightboxIdx].caption && (
                 <p className="mt-2 text-center text-sm text-white/80">
                   {photos[lightboxIdx].caption}
