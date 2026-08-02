@@ -312,6 +312,25 @@ export type Photo = {
   created_at: string
 }
 
+/** One comment on a photo. Author is nullable: a deleted member's words stay. */
+export type PhotoCommentRow = {
+  id: string
+  photo_id: string
+  author_id: string | null
+  body: string
+  created_at: string
+}
+
+/**
+ * One like. There is no id — the pair is the primary key, which is what makes
+ * "one like per member per photo" true regardless of what the UI does.
+ */
+export type PhotoLike = {
+  photo_id: string
+  member_id: string
+  created_at: string
+}
+
 export type Message = {
   id: string
   reunion_id: string
@@ -346,6 +365,10 @@ export type AnnouncementWithAuthor = Announcement & {
 
 export type PhotoWithUploader = Photo & {
   uploader?: Pick<Member, 'id' | 'name' | 'photo_url'>
+}
+
+export type PhotoCommentWithAuthor = PhotoCommentRow & {
+  author?: Pick<Member, 'id' | 'name' | 'photo_url'>
 }
 
 export type SurveyQuestion = {

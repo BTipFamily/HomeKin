@@ -5,6 +5,12 @@ import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import { PhotoGrid } from './photo-grid'
 import { PhotoUploader } from './photo-uploader'
+import {
+  groupComments,
+  summarizeLikes,
+  type LikeRow,
+  type PhotoComment,
+} from '@/lib/photo-social'
 
 interface PhotosPageProps {
   params: Promise<{ id: string }>
@@ -20,7 +26,7 @@ export default async function PhotosPage({ params }: PhotosPageProps) {
 
   const { data: member } = await supabase
     .from('members')
-    .select('id, role')
+    .select('id, name, role')
     .eq('auth_user_id', user.id)
     .single()
   if (!member) redirect('/login')
@@ -57,6 +63,24 @@ export default async function PhotosPage({ params }: PhotosPageProps) {
     public_url: urlByPath[photo.storage_path] ?? '',
   }))
 
+  // Likes and comments for the whole album in one query each, grouped in
+  // memory. A count query per photo would be a round trip per tile.
+  const photoIds = photosWithUrls.map((p) => p.id)
+  const [{ data: likeRows }, { data: commentRows }] =
+    photoIds.length > 0
+      ? await Promise.all([
+          supabase.from('photo_likes').select('photo_id, member:member_id(id, name)').in('photo_id', photoIds),
+          supabase
+            .from('photo_comments')
+            .select('id, photo_id, body, created_at, author:author_id(id, name, photo_url)')
+            .in('photo_id', photoIds)
+            .order('created_at'),
+        ])
+      : [{ data: [] }, { data: [] }]
+
+  const likesByPhoto = summarizeLikes((likeRows ?? []) as unknown as LikeRow[], member.id)
+  const commentsByPhoto = groupComments((commentRows ?? []) as unknown as PhotoComment[])
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <div className="mb-6 flex items-center justify-between gap-4">
@@ -84,8 +108,11 @@ export default async function PhotosPage({ params }: PhotosPageProps) {
         <PhotoGrid
           photos={photosWithUrls}
           currentMemberId={member.id}
+          currentMemberName={member.name}
           currentMemberRole={member.role}
           reunionId={id}
+          likesByPhoto={likesByPhoto}
+          commentsByPhoto={commentsByPhoto}
         />
       )}
     </div>
