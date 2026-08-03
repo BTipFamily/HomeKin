@@ -27,17 +27,20 @@ export default function ReunionWizard() {
   const [step, setStep] = useState<Step>('basics')
   const [error, setError] = useState<string | null>(null)
 
+  // Multi-day by default: most family reunions run a weekend, so the wizard
+  // assumes that and offers a way out rather than making everyone opt in. The
+  // end date fills itself in once a start date is picked.
   const [basics, setBasics] = useState<BasicsValue>({
     name: '',
     description: '',
     startDate: '',
     endDate: null,
-    multiDay: false,
+    multiDay: true,
     hostCity: '',
   })
   const [budget, setBudget] = useState<BudgetEstimatorValue>(defaultBudgetEstimatorValue())
   const [timeline, setTimeline] = useState<TimelineOptions>({
-    multiDay: false,
+    multiDay: true,
     lodging: true,
     merchandise: true,
     heritage: false,
