@@ -97,3 +97,11 @@ psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/09_event_dea
 echo "--- photo comments and likes"
 psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/10_photo_social.sql" 2>&1 \
   | sed 's/^psql.*NOTICE:  /    /'
+
+echo "--- merge keeps payment history"
+psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/11_merge_payments.sql" 2>&1 \
+  | sed 's/^psql.*NOTICE:  /    /'
+
+echo "--- households and attendees"
+psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/12_households_attendees.sql" 2>&1 \
+  | sed 's/^psql.*NOTICE:  /    /'

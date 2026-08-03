@@ -239,6 +239,10 @@ Run them in the Supabase SQL editor (or `supabase db push` if you use the CLI).
 | `019_photo_comments_and_likes` | `photo_comments`, `photo_likes`; teaches `merge_members()` about both; indexes `photos` |
 | `020_video_uploads` | `photos.media_type`/`thumbnail_path`/`duration_seconds`, video MIME types on the bucket, poster sweep in `delete_reunion()` |
 | `021_photo_delete_permission` | Lets the committee delete a photo, which the UI already offered |
+| `022_merge_members_payments` | Stops a member merge deleting the merged-away profile's payment history |
+| `023_reunion_status` | `reunions.status` — the reunion's lifecycle stage, advisory rather than gating |
+| `024_households` | `households` and `household_members`; teaches `merge_members()` about them |
+| `025_attendees` | Named attendees on a signup, backfilled from `signups.guest_names` |
 
 If a feature's button appears but fails when clicked, an unapplied migration is
 the first thing to check — the UI does not gate on schema version.

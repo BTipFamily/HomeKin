@@ -1,6 +1,8 @@
 // Database types matching the Supabase schema
 // Run `supabase gen types typescript` to regenerate from a live project
 
+import type { ReunionPhase } from '@/lib/reunion-phase'
+
 export type Role = 'member' | 'committee' | 'admin'
 export type SignupStatus = 'pending' | 'confirmed'
 export type BalanceStatus = 'unpaid' | 'partially_paid' | 'paid' | 'pending_confirmation'
@@ -65,6 +67,11 @@ export type Reunion = {
   longitude: number | null
   start_date: string | null
   end_date: string | null
+  /**
+   * Lifecycle stage. Advisory — it drives what the app surfaces and suggests,
+   * never what it permits. See `src/lib/reunion-phase.ts`.
+   */
+  status: ReunionPhase
   created_by: string | null
   created_at: string
 }
@@ -180,8 +187,48 @@ export type Signup = {
   sub_event_id: string
   member_id: string
   headcount: number
+  /**
+   * The old free-text list of who is coming. Superseded by `attendees`, and
+   * kept until the UI reads those instead — see migration 025.
+   */
   guest_names: string | null
   status: SignupStatus
+  created_at: string
+}
+
+export type AgeBand = 'adult' | 'senior' | 'teen' | 'child' | 'toddler'
+
+/**
+ * One named person on a signup. The signup's `headcount` stays authoritative
+ * for numbers; these are the detail behind it, and the two are deliberately
+ * allowed to disagree while a family is part-way through filling them in.
+ */
+export type Attendee = {
+  id: string
+  signup_id: string
+  name: string
+  age_band: AgeBand | null
+  dietary_notes: string | null
+  accessibility_notes: string | null
+  created_at: string
+}
+
+/** The unit a family actually answers as. Groups members; does not own money. */
+export type Household = {
+  id: string
+  name: string
+  family_branch: string | null
+  primary_contact_id: string | null
+  emergency_contact_name: string | null
+  emergency_contact_phone: string | null
+  created_by: string | null
+  created_at: string
+}
+
+/** A member belongs to at most one household — the member is the key. */
+export type HouseholdMember = {
+  household_id: string
+  member_id: string
   created_at: string
 }
 
