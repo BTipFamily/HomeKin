@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { getInitials } from '@/lib/utils'
 import { canViewField } from '@/lib/visibility'
@@ -67,6 +67,20 @@ export default async function MemberProfilePage({ params }: ProfilePageProps) {
   // sees everyone's, and nobody else sees any of it.
   const isCommittee = ['committee', 'admin'].includes(myRole)
   const canViewHistory = isMe || isCommittee
+
+  // No filtering here: the select policy on member_support_needs decides who
+  // gets a row, so this returns nothing at all for someone who may not see it.
+  // That is the difference from the contact fields above, which are filtered
+  // at render time over data the query returned regardless. See migration 030.
+  const { data: supportNeeds } = await supabase
+    .from('member_support_needs')
+    .select('dietary_notes, health_notes, mobility_notes, share_with_family')
+    .eq('member_id', member.id)
+    .maybeSingle()
+
+  const hasSupportNeeds = Boolean(
+    supportNeeds?.dietary_notes || supportNeeds?.health_notes || supportNeeds?.mobility_notes
+  )
   const history = canViewHistory
     ? await getMemberHistory(member.id)
     : { entries: [], totals: summarizeHistory([]) }
@@ -213,6 +227,58 @@ export default async function MemberProfilePage({ params }: ProfilePageProps) {
       </Card>
 
       {/* Reunion history — your own always, anyone's for committee and admin. */}
+      {hasSupportNeeds && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-base">Dietary, health and mobility</CardTitle>
+            <CardDescription>
+              {supportNeeds?.share_with_family
+                ? 'Shared with the family.'
+                : 'Visible to you, the committee and admins.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {supportNeeds?.dietary_notes && (
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Dietary
+                </p>
+                <p>{supportNeeds.dietary_notes}</p>
+              </div>
+            )}
+            {supportNeeds?.health_notes && (
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Health
+                </p>
+                <p>{supportNeeds.health_notes}</p>
+              </div>
+            )}
+            {supportNeeds?.mobility_notes && (
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Mobility
+                </p>
+                <p>{supportNeeds.mobility_notes}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {member.volunteer_interest && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-base">Happy to help</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {(member.volunteer_areas ?? []).length > 0
+              ? (member.volunteer_areas as string[]).join(', ')
+              : 'Willing to lend a hand.'}
+          </CardContent>
+        </Card>
+      )}
+
       {canViewHistory && (
         <Card className="mt-6">
           <CardHeader>

@@ -78,15 +78,65 @@ export async function updateMemberProfile(formData: FormData) {
         instagram: instagram || null,
         linkedin: linkedin || null,
       },
+      // A standing offer to help, separate from whether they are free for any
+      // particular reunion — that answer lives on interest_responses.
+      volunteer_interest: formData.get('volunteer_interest') === 'on',
+      volunteer_areas: formData.getAll('volunteer_areas') as string[],
       ...geoFields,
     })
     .eq('id', memberId)
 
   if (error) throw new Error(error.message)
 
+  await saveSupportNeeds(supabase, memberId, formData)
+
   revalidatePath(`/directory/${memberId}`)
   revalidatePath(`/directory/${memberId}/edit`)
   revalidatePath('/directory')
+}
+
+/**
+ * Writes the dietary, health and mobility notes.
+ *
+ * A separate table rather than columns on `members`, and deliberately through
+ * the ordinary client rather than the service role: `member_support_needs` has
+ * a real select policy, and going around it here would undo the whole reason
+ * the table exists. See migration 030.
+ *
+ * Blank on every field with sharing off means the member has nothing to record,
+ * so the row is removed rather than kept as an empty shell — a health record
+ * that exists but says nothing is worse than no record, because a committee
+ * reading the list cannot tell "no needs" from "never asked".
+ */
+async function saveSupportNeeds(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  memberId: string,
+  formData: FormData
+) {
+  const dietary = ((formData.get('dietary_notes') as string) ?? '').trim()
+  const health = ((formData.get('health_notes') as string) ?? '').trim()
+  const mobility = ((formData.get('mobility_notes') as string) ?? '').trim()
+  const share = formData.get('share_with_family') === 'on'
+
+  if (!dietary && !health && !mobility) {
+    const { error } = await supabase.from('member_support_needs').delete().eq('member_id', memberId)
+    if (error) throw new Error(error.message)
+    return
+  }
+
+  const { error } = await supabase.from('member_support_needs').upsert(
+    {
+      member_id: memberId,
+      dietary_notes: dietary || null,
+      health_notes: health || null,
+      mobility_notes: mobility || null,
+      share_with_family: share,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'member_id' }
+  )
+
+  if (error) throw new Error(error.message)
 }
 
 export async function createProxyMember(formData: FormData) {

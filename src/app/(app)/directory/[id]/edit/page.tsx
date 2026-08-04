@@ -21,6 +21,18 @@ interface EditProfilePageProps {
   params: Promise<{ id: string }>
 }
 
+const VOLUNTEER_AREAS = [
+  'Setup and cleanup',
+  'Food',
+  'Registration table',
+  'Games and activities',
+  'Youth',
+  'Elder support',
+  'Photography',
+  'Family history',
+  'Transportation',
+]
+
 export default async function EditProfilePage({ params }: EditProfilePageProps) {
   const supabase = await createClient()
   const {
@@ -66,6 +78,14 @@ export default async function EditProfilePage({ params }: EditProfilePageProps) 
     : { data: [] }
 
   const otherPartyLookup = Object.fromEntries((otherPartyRows ?? []).map((m) => [m.id, m]))
+
+  // Own row via the ordinary client, so the policy in migration 030 applies
+  // here too rather than being bypassed on the one page that writes it.
+  const { data: supportNeeds } = await supabase
+    .from('member_support_needs')
+    .select('dietary_notes, health_notes, mobility_notes, share_with_family')
+    .eq('member_id', id)
+    .maybeSingle()
 
   const today = new Date().toISOString().slice(0, 10)
 
@@ -196,6 +216,97 @@ export default async function EditProfilePage({ params }: EditProfilePageProps) 
                 placeholder="Tell the family a bit about yourself..."
                 rows={4}
               />
+            </div>
+
+            <Separator />
+            <div>
+              <p className="text-sm font-medium">Dietary, health and mobility</p>
+              <p className="text-xs text-muted-foreground">
+                So the committee can plan meals and pick somewhere everyone can manage. Only
+                you, the committee and admins can see this unless you choose otherwise — and
+                you can leave any of it blank.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="dietary_notes">Dietary needs</Label>
+              <Textarea
+                id="dietary_notes"
+                name="dietary_notes"
+                defaultValue={supportNeeds?.dietary_notes ?? ''}
+                placeholder="Allergies, intolerances, vegetarian, halal..."
+                rows={2}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="health_notes">Health considerations</Label>
+              <Textarea
+                id="health_notes"
+                name="health_notes"
+                defaultValue={supportNeeds?.health_notes ?? ''}
+                placeholder="Anything worth the committee knowing in advance"
+                rows={2}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="mobility_notes">Mobility</Label>
+              <Textarea
+                id="mobility_notes"
+                name="mobility_notes"
+                defaultValue={supportNeeds?.mobility_notes ?? ''}
+                placeholder="Stairs, distances, wheelchair access, seating..."
+                rows={2}
+              />
+            </div>
+
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="share_with_family"
+                className="mt-0.5 rounded"
+                defaultChecked={supportNeeds?.share_with_family ?? false}
+              />
+              <span>
+                Share this with the whole family
+                <span className="block text-xs text-muted-foreground">
+                  Off by default. Leave it off and only the committee and admins can see it.
+                </span>
+              </span>
+            </label>
+
+            <Separator />
+            <div>
+              <p className="text-sm font-medium">Helping out</p>
+              <p className="text-xs text-muted-foreground">
+                A standing offer. You will still be asked about each reunion separately.
+              </p>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="volunteer_interest"
+                className="rounded"
+                defaultChecked={member.volunteer_interest ?? false}
+              />
+              I&rsquo;m generally willing to help out
+            </label>
+
+            <div className="flex flex-wrap gap-3">
+              {VOLUNTEER_AREAS.map((area) => (
+                <label key={area} className="flex items-center gap-1.5 text-xs">
+                  <input
+                    type="checkbox"
+                    name="volunteer_areas"
+                    value={area}
+                    className="rounded"
+                    defaultChecked={(member.volunteer_areas ?? []).includes(area)}
+                  />
+                  {area}
+                </label>
+              ))}
             </div>
 
             <Separator />
