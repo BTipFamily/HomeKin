@@ -48,16 +48,19 @@ export default async function EventsPage({ params }: EventsPageProps) {
 
   const signupMap = new Map(userSignups?.map((s) => [s.sub_event_id, s]) ?? [])
 
-  // Get headcount totals per event
-  const { data: signupCounts } = await supabase
-    .from('signups')
-    .select('sub_event_id, headcount')
-    .in('sub_event_id', events?.map((e) => e.id) ?? [])
+  // Via the security-definer function rather than a direct query: the signups
+  // select policy shows a member only their own rows, so counting those made
+  // every event look nearly empty and "Full" never appeared for anyone but the
+  // committee.
+  const { data: signupCounts } = await supabase.rpc('event_headcounts', { p_reunion: id })
 
-  const countMap = new Map<string, number>()
-  signupCounts?.forEach((s) => {
-    countMap.set(s.sub_event_id, (countMap.get(s.sub_event_id) ?? 0) + s.headcount)
-  })
+  // One already-aggregated row per event, so this sets rather than accumulates.
+  const countMap = new Map<string, number>(
+    ((signupCounts ?? []) as { sub_event_id: string; headcount: number }[]).map((row) => [
+      row.sub_event_id,
+      Number(row.headcount),
+    ])
+  )
 
   const canManage = ['committee', 'admin'].includes(member.role)
 

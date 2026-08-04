@@ -244,6 +244,7 @@ Run them in the Supabase SQL editor (or `supabase db push` if you use the CLI).
 | `024_households` | `households` and `household_members`; teaches `merge_members()` about them |
 | `025_attendees` | Named attendees on a signup, backfilled from `signups.guest_names` |
 | `026_interest_responses` | Typed interest survey per reunion; teaches `merge_members()` about it |
+| `027_event_booking_modes` | Direct/group events, group price tiers, and headcount functions the signups policy would otherwise hide |
 
 If a feature's button appears but fails when clicked, an unapplied migration is
 the first thing to check — the UI does not gate on schema version.

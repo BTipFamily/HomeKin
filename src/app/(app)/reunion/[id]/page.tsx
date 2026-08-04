@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Pin, Trash2, Calendar, Camera, Users, MessageCircle, ClipboardList, DollarSign, ListChecks, Wallet, Settings, FileText, HeartHandshake } from 'lucide-react'
+import { Pin, Trash2, Calendar, Camera, Users, MessageCircle, ClipboardList, DollarSign, ListChecks, Wallet, Settings, FileText, HeartHandshake, CalendarDays } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { deleteAnnouncement } from '@/lib/actions/announcements'
 import { AnnouncementForm } from './announcement-form'
@@ -97,6 +97,12 @@ export default async function ReunionPage({ params }: ReunionPageProps) {
           <Link href={`/reunion/${id}/events`}>
             <Calendar className="h-5 w-5" />
             <span className="text-xs">Events ({eventCount ?? 0})</span>
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
+          <Link href={`/reunion/${id}/agenda`}>
+            <CalendarDays className="h-5 w-5" />
+            <span className="text-xs">Agenda</span>
           </Link>
         </Button>
         <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">

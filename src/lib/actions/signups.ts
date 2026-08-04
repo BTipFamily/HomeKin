@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { sendStatement } from '@/lib/statements'
+import { type BookingMode } from '@/lib/event-pricing'
+import { repriceGroupEvent } from '@/lib/actions/group-pricing'
 
 /**
  * Emails the member their statement without letting a mail failure undo the
@@ -24,6 +26,56 @@ async function emailStatement(memberId: string, reunionId: string | undefined) {
   }
 }
 
+/** The fields every balance decision below depends on. */
+type PricedEvent = {
+  id: string
+  reunion_id: string
+  capacity: number | null
+  cost_per_person: number
+  booking_mode: BookingMode
+}
+
+/**
+ * Creates the member's balance for an event, or updates what it says is owed.
+ *
+ * `amount_owed` is always rewritten, including on an already-paid balance.
+ * This used to be skipped unless the status was 'unpaid', so adding a guest
+ * after paying silently left the old, too-small figure and nobody was ever
+ * billed the difference. Status is derived from the payments ledger, so raising
+ * the amount reopens the balance and lowering it below what has been paid
+ * leaves a credit — both without anything here having to say so.
+ *
+ * `owed` is optional because a group event's figure is settled afterwards by
+ * repriceGroupEvent, once this row exists to be included in the sweep.
+ */
+async function ensureBalance(
+  event: PricedEvent,
+  memberId: string,
+  subEventId: string,
+  owed = 0
+): Promise<void> {
+  const service = createServiceClient()
+
+  const { data: existing } = await service
+    .from('balances')
+    .select('id')
+    .eq('member_id', memberId)
+    .eq('sub_event_id', subEventId)
+    .maybeSingle()
+
+  if (!existing) {
+    await service.from('balances').insert({
+      member_id: memberId,
+      reunion_id: event.reunion_id,
+      sub_event_id: subEventId,
+      amount_owed: owed,
+      amount_paid: 0,
+    })
+  } else if (owed > 0) {
+    await service.from('balances').update({ amount_owed: owed }).eq('id', existing.id)
+  }
+}
+
 export async function upsertSignup(formData: FormData) {
   const supabase = await createClient()
   const {
@@ -41,28 +93,49 @@ export async function upsertSignup(formData: FormData) {
   const subEventId = formData.get('sub_event_id') as string
   const headcountRaw = formData.get('headcount') as string
   const guestNames = formData.get('guest_names') as string
+  const bookingReference = (formData.get('booking_reference') as string | null)?.trim() || null
+  const externalAmountRaw = (formData.get('external_amount') as string | null)?.trim()
 
   const headcount = parseInt(headcountRaw)
   if (headcount < 1) throw new Error('Headcount must be at least 1')
 
-  // Check capacity
-  const { data: subEvent } = await supabase
+  const externalAmount =
+    externalAmountRaw && externalAmountRaw !== '' ? Number.parseFloat(externalAmountRaw) : null
+  if (externalAmount !== null && (!Number.isFinite(externalAmount) || externalAmount < 0)) {
+    throw new Error('What you paid the vendor cannot be negative')
+  }
+
+  const { data: subEventRow } = await supabase
     .from('sub_events')
-    .select('capacity, reunion_id, cost_per_person')
+    .select('id, capacity, reunion_id, cost_per_person, booking_mode')
     .eq('id', subEventId)
     .single()
 
+  const subEvent = subEventRow as PricedEvent | null
+  const reunionId = subEvent?.reunion_id
+
   if (subEvent?.capacity) {
-    const { data: existingSignups } = await supabase
+    // Via the security-definer function, not a direct query. The signups select
+    // policy shows a member only their own rows, so asking the anon client for
+    // everyone *else's* signups returned nothing and the capacity check passed
+    // for every ordinary member — silently, and only for the people it exists
+    // to limit.
+    const { data: totalHeadcount } = await supabase.rpc('event_headcount', {
+      p_sub_event: subEventId,
+    })
+
+    const { data: mine } = await supabase
       .from('signups')
       .select('headcount')
       .eq('sub_event_id', subEventId)
-      .neq('member_id', member.id)
+      .eq('member_id', member.id)
+      .maybeSingle()
 
-    const currentHeadcount = existingSignups?.reduce((sum, s) => sum + s.headcount, 0) ?? 0
-    if (currentHeadcount + headcount > subEvent.capacity) {
+    // This upsert replaces the member's own signup rather than adding to it.
+    const others = Number(totalHeadcount ?? 0) - Number(mine?.headcount ?? 0)
+    if (others + headcount > subEvent.capacity) {
       throw new Error(
-        `Not enough capacity. Only ${subEvent.capacity - currentHeadcount} spots remaining.`
+        `Not enough capacity. Only ${Math.max(subEvent.capacity - others, 0)} spots remaining.`
       )
     }
   }
@@ -73,6 +146,8 @@ export async function upsertSignup(formData: FormData) {
       member_id: member.id,
       headcount,
       guest_names: guestNames || null,
+      booking_reference: bookingReference,
+      external_amount: externalAmount,
       status: 'pending',
     },
     { onConflict: 'sub_event_id,member_id' }
@@ -80,39 +155,18 @@ export async function upsertSignup(formData: FormData) {
 
   if (error) throw new Error(error.message)
 
-  const reunionId = subEvent?.reunion_id
-
-  // Auto-sync balance row for paid events (server-side only, bypasses RLS)
-  if (subEvent && subEvent.cost_per_person > 0 && reunionId) {
-    const serviceClient = createServiceClient()
-    const owed = headcount * subEvent.cost_per_person
-
-    const { data: existing } = await serviceClient
-      .from('balances')
-      .select('id')
-      .eq('member_id', member.id)
-      .eq('sub_event_id', subEventId)
-      .maybeSingle()
-
-    if (!existing) {
-      await serviceClient.from('balances').insert({
-        member_id: member.id,
-        reunion_id: reunionId,
-        sub_event_id: subEventId,
-        amount_owed: owed,
-        amount_paid: 0,
-      })
-    } else {
-      // Always recalculated, including on an already-paid balance. This used to
-      // be skipped unless the status was 'unpaid', so adding a guest after
-      // paying silently left the old, too-small figure and nobody was ever
-      // billed the difference. Status is derived from the payments ledger, so
-      // raising the amount reopens the balance and lowering it below what has
-      // been paid leaves a credit — both without anything here saying so.
-      await serviceClient
-        .from('balances')
-        .update({ amount_owed: owed })
-        .eq('id', existing.id)
+  // A direct event is booked and paid for on the vendor's own site, so HomeKin
+  // records who is going and deliberately creates no balance. Billing for money
+  // the committee is not collecting would make the budget page overstate what
+  // it holds.
+  if (subEvent && subEvent.booking_mode !== 'direct' && reunionId) {
+    if (subEvent.booking_mode === 'group') {
+      // Priced from the whole event, so this member's signup may have just
+      // changed what everyone owes.
+      await ensureBalance(subEvent, member.id, subEventId)
+      await repriceGroupEvent(subEvent.id)
+    } else if (subEvent.cost_per_person > 0) {
+      await ensureBalance(subEvent, member.id, subEventId, headcount * subEvent.cost_per_person)
     }
   }
 
@@ -167,6 +221,12 @@ export async function cancelSignup(signupId: string, reunionId: string, subEvent
       await serviceClient.from('balances').update({ amount_owed: 0 }).eq('id', balance.id)
     }
   }
+
+  // Leaving a group event can drop it back below a threshold, which puts the
+  // price up for everyone still going. Unwelcome, but the alternative is
+  // billing families less than the vendor is charging the reunion. No mode
+  // check here — repriceGroupEvent does nothing on an event that is not one.
+  await repriceGroupEvent(subEventId)
 
   revalidatePath(`/reunion/${reunionId}/events/${subEventId}`)
   revalidatePath(`/reunion/${reunionId}/signups`)

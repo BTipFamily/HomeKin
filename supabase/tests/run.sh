@@ -109,3 +109,7 @@ psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/12_household
 echo "--- interest responses"
 psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/13_interest.sql" 2>&1 \
   | sed 's/^psql.*NOTICE:  /    /'
+
+echo "--- event booking modes and price tiers"
+psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/14_event_modes.sql" 2>&1 \
+  | sed 's/^psql.*NOTICE:  /    /'

@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ArrowLeft } from 'lucide-react'
 import { createSubEvent } from '@/lib/actions/sub-events'
 import DeadlineFields from '../deadline-fields'
+import { BookingFields } from '../booking-fields'
 import EventFormShell from '../event-form-shell'
 
 interface NewEventPageProps {
@@ -147,6 +148,8 @@ export default async function NewEventPage({ params }: NewEventPageProps) {
                 />
               </div>
             </div>
+
+            <BookingFields />
 
             <DeadlineFields />
           </EventFormShell>

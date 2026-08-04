@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from 'lucide-react'
 import { updateSubEvent } from '@/lib/actions/sub-events'
 import DeadlineFields from '../../deadline-fields'
+import { BookingFields } from '../../booking-fields'
+import type { BookingMode, PriceTier } from '@/lib/event-pricing'
 import EventFormShell from '../../event-form-shell'
 import type { EventDeadline } from '@/types/database'
 
@@ -45,6 +47,12 @@ export default async function EditEventPage({ params }: EditEventPageProps) {
     .select('*')
     .eq('sub_event_id', eventId)
     .order('due_date')
+
+  const { data: tiers } = await supabase
+    .from('event_price_tiers')
+    .select('min_headcount, price_per_person')
+    .eq('sub_event_id', eventId)
+    .order('min_headcount')
 
   return (
     <div className="mx-auto max-w-xl px-4 py-8 sm:px-6">
@@ -155,6 +163,15 @@ export default async function EditEventPage({ params }: EditEventPageProps) {
                 />
               </div>
             </div>
+
+            <BookingFields
+              defaultMode={(event.booking_mode ?? 'homekin') as BookingMode}
+              defaultVendorName={event.vendor_name ?? ''}
+              defaultVendorUrl={event.vendor_url ?? ''}
+              defaultBookingDeadline={event.booking_deadline ?? ''}
+              defaultMinGroupSize={event.min_group_size ? String(event.min_group_size) : ''}
+              existingTiers={(tiers ?? []) as PriceTier[]}
+            />
 
             <DeadlineFields existing={(deadlines ?? []) as EventDeadline[]} />
           </EventFormShell>

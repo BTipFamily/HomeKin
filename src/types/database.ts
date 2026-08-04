@@ -196,6 +196,23 @@ export type Signup = {
   created_at: string
 }
 
+/**
+ * How an event is booked and paid for.
+ *
+ * `direct` is the one with teeth: the vendor collects, so no balance is ever
+ * created and HomeKin never claims money the committee is not holding.
+ */
+export type { BookingMode } from '@/lib/event-pricing'
+
+/** "At this many people, everyone pays this much each." */
+export type EventPriceTier = {
+  id: string
+  sub_event_id: string
+  min_headcount: number
+  price_per_person: number
+  created_at: string
+}
+
 export type AgeBand = 'adult' | 'senior' | 'teen' | 'child' | 'toddler'
 
 /**

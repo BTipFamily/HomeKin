@@ -9,7 +9,62 @@ import {
   validateDeadlines,
   type DeadlineInput,
 } from '@/lib/payment-schedule'
+import {
+  parseTiersFromForm,
+  validateTiers,
+  type BookingMode,
+  type PriceTier,
+} from '@/lib/event-pricing'
+import { repriceGroupEvent } from '@/lib/actions/group-pricing'
 import type { EventFormState } from '@/lib/event-form'
+
+const BOOKING_MODES: BookingMode[] = ['homekin', 'direct', 'group']
+
+/**
+ * Reads the booking mode and the vendor details that go with it.
+ *
+ * An unrecognised mode falls back to 'homekin' rather than erroring: the value
+ * comes from a select the committee did not type into, so a surprise here is a
+ * bug on our side, and defaulting to "the committee collects" is the safe way
+ * to be wrong — it bills, which someone will notice, rather than silently not
+ * billing, which nobody will.
+ */
+function readBookingFields(formData: FormData) {
+  const raw = (formData.get('booking_mode') as string | null) ?? 'homekin'
+  const bookingMode: BookingMode = BOOKING_MODES.includes(raw as BookingMode)
+    ? (raw as BookingMode)
+    : 'homekin'
+
+  const minGroupRaw = (formData.get('min_group_size') as string | null)?.trim()
+  const minGroupSize = minGroupRaw ? Number.parseInt(minGroupRaw, 10) : null
+  if (minGroupSize !== null && (!Number.isFinite(minGroupSize) || minGroupSize < 1)) {
+    throw new Error('A minimum group size must be at least 1 person.')
+  }
+
+  return {
+    booking_mode: bookingMode,
+    vendor_name: ((formData.get('vendor_name') as string | null) ?? '').trim() || null,
+    vendor_url: ((formData.get('vendor_url') as string | null) ?? '').trim() || null,
+    booking_deadline: ((formData.get('booking_deadline') as string | null) ?? '') || null,
+    min_group_size: minGroupSize,
+  }
+}
+
+/**
+ * Reads the group price tiers, refusing the save if they do not hang together.
+ *
+ * Checked before the event is written, for the same reason the deadlines are:
+ * a bad tier ladder should not leave a half-created event behind. Tiers are
+ * only meaningful on a group event, so anything typed into a form that was
+ * later switched to another mode is discarded rather than saved and ignored.
+ */
+function readTiers(formData: FormData, bookingMode: BookingMode, basePrice: number): PriceTier[] {
+  if (bookingMode !== 'group') return []
+  const tiers = parseTiersFromForm(formData)
+  const errors = validateTiers(tiers, basePrice)
+  if (errors.length > 0) throw new Error(errors.join(' '))
+  return tiers
+}
 
 function failed(e: unknown): EventFormState {
   return {
@@ -130,6 +185,8 @@ export async function createSubEvent(
     if (capacity !== null && capacity < 1) throw new Error('Capacity must be at least 1')
 
     const deadlines = readDeadlines(formData, date || null)
+    const booking = readBookingFields(formData)
+    const tiers = readTiers(formData, booking.booking_mode, cost)
 
     const normalizedAddress = address || null
     const geoFields: Record<string, unknown> = {}
@@ -155,12 +212,24 @@ export async function createSubEvent(
         capacity,
         duration_minutes: durationMinutes,
         created_by: member.id,
+        ...booking,
         ...geoFields,
       })
       .select('id')
       .single()
 
     if (error) throw new Error(error.message)
+
+    if (tiers.length > 0) {
+      const { error: tierError } = await supabase
+        .from('event_price_tiers')
+        .insert(tiers.map((t) => ({ sub_event_id: data.id, ...t })))
+      if (tierError) {
+        throw new Error(
+          `The event was created, but its group prices were not saved. ${explainDeadlineError(tierError)}`
+        )
+      }
+    }
 
     if (deadlines.length > 0) {
       const { error: deadlineError } = await supabase
@@ -215,6 +284,8 @@ export async function updateSubEvent(
     const durationMinutes = durationRaw ? parseInt(durationRaw) : null
 
     const deadlines = readDeadlines(formData, date || null)
+    const booking = readBookingFields(formData)
+    const tiers = readTiers(formData, booking.booking_mode, cost)
 
     const normalizedAddress = address || null
 
@@ -252,12 +323,14 @@ export async function updateSubEvent(
         cost_per_person: cost,
         capacity,
         duration_minutes: durationMinutes,
+        ...booking,
         ...geoFields,
       })
       .eq('id', eventId)
 
     if (error) throw new Error(error.message)
     await syncDeadlines(eventId, deadlines)
+    await syncTiers(eventId, tiers)
   } catch (e) {
     return failed(e)
   }
@@ -277,6 +350,37 @@ export async function updateSubEvent(
  * record of which reminders had already gone out and every one of them would
  * send again on the next cron run.
  */
+/**
+ * Replaces an event's group price tiers wholesale.
+ *
+ * Delete-then-insert rather than the careful reconcile syncDeadlines does,
+ * because a tier carries no history worth preserving — no reminders are logged
+ * against it and nothing references its id. A deadline keeps its id precisely
+ * so a date change does not re-send reminders; a tier has no such obligation.
+ *
+ * Reprices afterwards: editing the ladder changes what families owe just as
+ * surely as somebody signing up does, and leaving the old figures standing
+ * would mean the committee's change quietly applied only to the next person.
+ */
+async function syncTiers(eventId: string, tiers: PriceTier[]) {
+  const service = createServiceClient()
+
+  const { error: clearError } = await service
+    .from('event_price_tiers')
+    .delete()
+    .eq('sub_event_id', eventId)
+  if (clearError) throw new Error(explainDeadlineError(clearError))
+
+  if (tiers.length > 0) {
+    const { error } = await service
+      .from('event_price_tiers')
+      .insert(tiers.map((t) => ({ sub_event_id: eventId, ...t })))
+    if (error) throw new Error(explainDeadlineError(error))
+  }
+
+  await repriceGroupEvent(eventId)
+}
+
 async function syncDeadlines(eventId: string, deadlines: DeadlineInput[]) {
   const service = createServiceClient()
 
