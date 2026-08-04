@@ -5,14 +5,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { HOST_CITIES } from '@/lib/budget-estimator'
-import { suggestEndDate, validateReunionDates } from '@/lib/reunion-dates'
 
 export type BasicsValue = {
   name: string
   description: string
-  startDate: string
-  endDate: string | null
-  multiDay: boolean
+  year: number
   hostCity: string
 }
 
@@ -24,32 +21,15 @@ interface BasicsStepProps {
 }
 
 export function BasicsStep({ value, onChange, onNext, onCancel }: BasicsStepProps) {
-  const dateError = validateReunionDates(value)
-  const canContinue = value.name.trim().length > 0 && dateError === null
+  // No date check: the reunion is created before anyone has been asked when
+  // they can come. The date is settled on the planning dashboard once the
+  // interest answers are in.
+  const canContinue = value.name.trim().length > 0 && value.year > 0
 
   function patch(partial: Partial<BasicsValue>) {
     onChange({ ...value, ...partial })
   }
 
-  /**
-   * Picking a start date fills in an end date to match, so the multi-day
-   * default arrives complete rather than as an empty field the organiser has
-   * to notice. Only ever fills a blank one — a date already chosen is theirs.
-   */
-  function patchStartDate(startDate: string) {
-    const endDate =
-      value.multiDay && !value.endDate ? suggestEndDate(startDate) : value.endDate
-    patch({ startDate, endDate })
-  }
-
-  /** The checkbox reads as "single day", the data stays `multiDay`. */
-  function patchSingleDay(singleDay: boolean) {
-    if (singleDay) {
-      patch({ multiDay: false, endDate: null })
-    } else {
-      patch({ multiDay: true, endDate: value.endDate ?? suggestEndDate(value.startDate) })
-    }
-  }
 
   return (
     <div className="space-y-4">
@@ -94,51 +74,25 @@ export function BasicsStep({ value, onChange, onNext, onCancel }: BasicsStepProp
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label htmlFor="start-date">Start Date *</Label>
-          <Input
-            id="start-date"
-            type="date"
-            required
-            value={value.startDate}
-            onChange={(e) => patchStartDate(e.target.value)}
-          />
-        </div>
-        {value.multiDay && (
-          <div className="space-y-2">
-            <Label htmlFor="end-date">End Date *</Label>
-            <Input
-              id="end-date"
-              type="date"
-              required
-              value={value.endDate ?? ''}
-              min={value.startDate || undefined}
-              onChange={(e) => patch({ endDate: e.target.value || null })}
-            />
-          </div>
-        )}
-      </div>
-
-      {dateError && value.startDate && (
-        <p className="text-xs text-destructive" role="alert">
-          {dateError}
-        </p>
-      )}
-
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          className="rounded"
-          checked={!value.multiDay}
-          onChange={(e) => patchSingleDay(e.target.checked)}
+      <div className="space-y-2">
+        <Label htmlFor="year">Year *</Label>
+        <Input
+          id="year"
+          type="number"
+          min={new Date().getFullYear()}
+          max={new Date().getFullYear() + 10}
+          value={value.year}
+          onChange={(e) => patch({ year: Number(e.target.value) || value.year })}
+          className="w-full sm:w-40"
         />
-        This reunion is only one day
-      </label>
+        <p className="text-xs text-muted-foreground">
+          The exact dates come later, once the family has said when they can travel.
+        </p>
+      </div>
 
       <div className="flex gap-3 pt-2">
         <Button type="button" onClick={onNext} disabled={!canContinue}>
-          Continue to Budget Estimator
+          Create and gather interest
         </Button>
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel

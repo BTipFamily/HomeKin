@@ -20,7 +20,32 @@ async function currentMember(): Promise<{ id: string }> {
   return member as { id: string }
 }
 
-export type InterestDraft = Omit<InterestResponse, 'member_id' | 'household_id'>
+export type DateRangeDraft = { starts_on: string; ends_on: string }
+
+export type InterestDraft = Omit<InterestResponse, 'member_id' | 'household_id'> & {
+  date_ranges: DateRangeDraft[]
+  suggested_locations: string[]
+  food_preferences: string[]
+}
+
+const FOOD_PREFERENCES = ['catered', 'potluck', 'cookout', 'restaurant', 'mixed']
+
+/**
+ * Keeps only the windows a family actually filled in, and only ones that make
+ * sense. A range whose end precedes its start is a typo, and the database
+ * would refuse it anyway — catching it here says so in words instead.
+ */
+function readDateRanges(ranges: DateRangeDraft[]): DateRangeDraft[] {
+  const cleaned: DateRangeDraft[] = []
+  for (const range of ranges) {
+    if (!range.starts_on || !range.ends_on) continue
+    if (range.ends_on < range.starts_on) {
+      throw new Error('A date range cannot end before it starts')
+    }
+    cleaned.push(range)
+  }
+  return cleaned
+}
 
 /**
  * Records or updates this member's interest in a reunion.
@@ -44,6 +69,11 @@ export async function saveInterest(
   }
 
   const months = [...new Set(draft.preferred_months)].filter((m) => m >= 1 && m <= 12)
+  const ranges = readDateRanges(draft.date_ranges ?? [])
+  const food = (draft.food_preferences ?? []).filter((f) => FOOD_PREFERENCES.includes(f))
+  const locations = (draft.suggested_locations ?? [])
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
 
   const { data: household } = await supabase
     .from('household_members')
@@ -51,7 +81,7 @@ export async function saveInterest(
     .eq('member_id', member.id)
     .maybeSingle()
 
-  const { error } = await supabase.from('interest_responses').upsert(
+  const { data: saved, error } = await supabase.from('interest_responses').upsert(
     {
       reunion_id: reunionId,
       member_id: member.id,
@@ -67,13 +97,31 @@ export async function saveInterest(
       willing_to_volunteer: draft.willing_to_volunteer,
       volunteer_areas: draft.volunteer_areas,
       history_interest: draft.history_interest,
+      suggested_locations: locations,
+      food_preferences: food,
       notes: draft.notes ?? null,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'reunion_id,member_id' }
-  )
+  ).select('id').single()
 
   if (error) throw new Error(error.message)
+
+  // Replaced wholesale rather than reconciled: a window carries no history and
+  // nothing references its id, so "these are my dates now" is the whole rule.
+  const responseId = (saved as { id: string }).id
+  const { error: clearError } = await supabase
+    .from('interest_date_ranges')
+    .delete()
+    .eq('response_id', responseId)
+  if (clearError) throw new Error(clearError.message)
+
+  if (ranges.length > 0) {
+    const { error: rangeError } = await supabase
+      .from('interest_date_ranges')
+      .insert(ranges.map((r) => ({ response_id: responseId, ...r })))
+    if (rangeError) throw new Error(rangeError.message)
+  }
 
   revalidatePath(`/reunion/${reunionId}/interest`)
   revalidatePath(`/reunion/${reunionId}`)

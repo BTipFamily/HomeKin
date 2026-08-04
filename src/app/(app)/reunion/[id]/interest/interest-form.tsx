@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Loader2, Check } from 'lucide-react'
+import { Loader2, Check, Plus, X } from 'lucide-react'
 import { saveInterest, type InterestDraft } from '@/lib/actions/interest'
+import { HOST_CITIES } from '@/lib/budget-estimator'
 import {
   BUDGET_BAND_LABELS,
   LENGTH_LABELS,
@@ -29,6 +30,14 @@ const VOLUNTEER_AREAS = [
   'Photography',
   'Family history',
   'Transportation',
+]
+
+const FOOD_OPTIONS: { value: string; label: string }[] = [
+  { value: 'catered', label: 'Catered' },
+  { value: 'potluck', label: 'Potluck' },
+  { value: 'cookout', label: 'Cookout / BBQ' },
+  { value: 'restaurant', label: 'Restaurant' },
+  { value: 'mixed', label: 'A mix' },
 ]
 
 const ATTENDING_OPTIONS: { value: Attending; label: string; hint: string }[] = [
@@ -63,6 +72,9 @@ export function InterestForm({
       willing_to_volunteer: false,
       volunteer_areas: [],
       history_interest: false,
+      date_ranges: [],
+      suggested_locations: [],
+      food_preferences: [],
       notes: '',
     }
   )
@@ -159,6 +171,154 @@ export function InterestForm({
                     }`}
                   >
                     {name.slice(0, 3)}
+                  </button>
+                )
+              })}
+            </div>
+          </fieldset>
+
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">Which exact dates could you travel?</legend>
+            <p className="text-xs text-muted-foreground">
+              Give any windows that work — &ldquo;the 12th to the 19th&rdquo;, or a single day.
+              The committee looks for the window the most families share, so a range is far
+              more use than one date.
+            </p>
+            {draft.date_ranges.map((range, i) => (
+              <div key={i} className="flex items-end gap-2">
+                <div className="flex-1 space-y-1">
+                  <Label className="text-xs text-muted-foreground">From</Label>
+                  <Input
+                    type="date"
+                    value={range.starts_on}
+                    onChange={(e) =>
+                      patch({
+                        date_ranges: draft.date_ranges.map((r, index) =>
+                          index === i
+                            ? {
+                                starts_on: e.target.value,
+                                // Keep the pair coherent: a start after the end
+                                // would only be refused on save.
+                                ends_on: r.ends_on && r.ends_on < e.target.value ? e.target.value : r.ends_on,
+                              }
+                            : r
+                        ),
+                      })
+                    }
+                  />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <Label className="text-xs text-muted-foreground">To</Label>
+                  <Input
+                    type="date"
+                    value={range.ends_on}
+                    min={range.starts_on || undefined}
+                    onChange={(e) =>
+                      patch({
+                        date_ranges: draft.date_ranges.map((r, index) =>
+                          index === i ? { ...r, ends_on: e.target.value } : r
+                        ),
+                      })
+                    }
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="mb-0.5 h-9 w-9 shrink-0"
+                  onClick={() =>
+                    patch({ date_ranges: draft.date_ranges.filter((_, index) => index !== i) })
+                  }
+                  aria-label="Remove this window"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                patch({ date_ranges: [...draft.date_ranges, { starts_on: '', ends_on: '' }] })
+              }
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Add a window
+            </Button>
+          </fieldset>
+
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">Where would you like it?</legend>
+            <p className="text-xs text-muted-foreground">
+              Anywhere you would happily travel to. The committee shortlists the most popular
+              suggestions for a vote.
+            </p>
+            {draft.suggested_locations.map((place, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Input
+                  list="interest-city-options"
+                  value={place}
+                  onChange={(e) =>
+                    patch({
+                      suggested_locations: draft.suggested_locations.map((p, index) =>
+                        index === i ? e.target.value : p
+                      ),
+                    })
+                  }
+                  placeholder="Atlanta, GA"
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-9 w-9 shrink-0"
+                  onClick={() =>
+                    patch({
+                      suggested_locations: draft.suggested_locations.filter((_, index) => index !== i),
+                    })
+                  }
+                  aria-label="Remove this suggestion"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <datalist id="interest-city-options">
+              {HOST_CITIES.map((city) => (
+                <option key={city} value={city} />
+              ))}
+            </datalist>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => patch({ suggested_locations: [...draft.suggested_locations, ''] })}
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Suggest a place
+            </Button>
+          </fieldset>
+
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">How should we eat?</legend>
+            <div className="flex flex-wrap gap-1.5">
+              {FOOD_OPTIONS.map((option) => {
+                const on = draft.food_preferences.includes(option.value)
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() =>
+                      patch({ food_preferences: toggle(draft.food_preferences, option.value) })
+                    }
+                    aria-pressed={on}
+                    className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                      on ? 'border-primary bg-primary/10 font-medium' : 'hover:bg-muted/50'
+                    }`}
+                  >
+                    {option.label}
                   </button>
                 )
               })}

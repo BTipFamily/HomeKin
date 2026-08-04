@@ -3,30 +3,21 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { geocodeAddress } from '@/lib/geocoding'
-import { computeTotal, type GuestCounts } from '@/lib/budget-estimator'
-import { generateTimeline, type TimelineOptions } from '@/lib/timeline-generator'
-import type { BudgetCategory, BudgetStyle, LodgingType } from '@/types/database'
 
 export type ReunionWizardBasics = {
   name: string
   description: string
-  startDate: string
-  endDate: string | null
+  /**
+   * Its own field now, not derived from a start date. The reunion is created
+   * before anyone has been asked when they can travel, so `new Date(startDate)`
+   * would have produced NaN against a NOT NULL column.
+   */
+  year: number
   hostCity: string
-}
-
-export type ReunionWizardBudget = {
-  nights: number
-  budgetStyle: BudgetStyle
-  guests: GuestCounts
-  lodgingType: LodgingType
-  categories: BudgetCategory[]
 }
 
 export type ReunionWizardDraft = {
   basics: ReunionWizardBasics
-  budget: ReunionWizardBudget
-  timeline: TimelineOptions
 }
 
 export async function createReunionWithPlan(draft: ReunionWizardDraft) {
@@ -45,8 +36,9 @@ export async function createReunionWithPlan(draft: ReunionWizardDraft) {
     throw new Error('Committee or admin access required')
   }
 
-  const { basics, budget, timeline } = draft
-  const year = new Date(basics.startDate).getFullYear()
+  const { basics } = draft
+  const year = basics.year
+  if (!Number.isFinite(year)) throw new Error('Pick a year for the reunion')
 
   const geo = basics.hostCity ? await geocodeAddress(basics.hostCity) : null
 
@@ -56,8 +48,11 @@ export async function createReunionWithPlan(draft: ReunionWizardDraft) {
       name: basics.name,
       year,
       description: basics.description || null,
-      start_date: basics.startDate,
-      end_date: basics.endDate || null,
+      // No dates yet, by design. They are settled on the planning dashboard
+      // once the family has said when they can travel.
+      start_date: null,
+      end_date: null,
+      status: 'interest',
       location_name: basics.hostCity || null,
       latitude: geo?.lat ?? null,
       longitude: geo?.lng ?? null,
@@ -69,46 +64,11 @@ export async function createReunionWithPlan(draft: ReunionWizardDraft) {
   if (reunionError) throw new Error(reunionError.message)
   const reunionId = reunion.id as string
 
-  // Budget estimate and timeline items are best-effort: the reunion itself
-  // is the important part, and both can be (re)generated later from the
-  // reunion's own Budget Estimator / Timeline pages if these inserts fail.
-  try {
-    const totals = computeTotal(budget.categories, budget.guests, budget.nights, budget.lodgingType)
-    const { error } = await supabase.from('reunion_budget_estimates').insert({
-      reunion_id: reunionId,
-      host_city: basics.hostCity || null,
-      nights: budget.nights,
-      budget_style: budget.budgetStyle,
-      adults_count: budget.guests.adults,
-      youth_count: budget.guests.youth,
-      toddlers_count: budget.guests.toddlers,
-      lodging_type: budget.lodgingType,
-      categories: budget.categories,
-      total_estimate: totals.total,
-      created_by: member.id,
-    })
-    if (error) console.error('Failed to save budget estimate:', error.message)
-  } catch (err) {
-    console.error('Failed to save budget estimate:', err)
-  }
-
-  try {
-    const items = generateTimeline(basics.startDate, timeline)
-    const { error } = await supabase.from('reunion_timeline_items').insert(
-      items.map((item) => ({
-        reunion_id: reunionId,
-        title: item.title,
-        phase_label: item.phase_label,
-        category: item.category,
-        due_date: item.due_date,
-        sort_order: item.sort_order,
-        created_by: member.id,
-      }))
-    )
-    if (error) console.error('Failed to save timeline items:', error.message)
-  } catch (err) {
-    console.error('Failed to save timeline items:', err)
-  }
+  // The budget estimate and the generated timeline used to be written here.
+  // Both count from a start date, which a reunion no longer has when it is
+  // created — generateTimeline works backwards from the event. They now live
+  // on the reunion's own Budget Estimator and Timeline pages, usable once the
+  // planning dashboard has settled a date.
 
   revalidatePath('/dashboard')
   return reunionId

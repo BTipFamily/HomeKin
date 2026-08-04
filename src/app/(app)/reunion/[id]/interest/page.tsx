@@ -43,7 +43,7 @@ export default async function InterestPage({ params }: InterestPageProps) {
   // it should by asking differently.
   const { data: responses } = await supabase
     .from('interest_responses')
-    .select('*, member:member_id(id, name)')
+    .select('*, member:member_id(id, name), ranges:interest_date_ranges(starts_on, ends_on)')
     .eq('reunion_id', id)
 
   const all = (responses ?? []) as unknown as (InterestResponse & {
@@ -65,6 +65,11 @@ export default async function InterestPage({ params }: InterestPageProps) {
         willing_to_volunteer: mine.willing_to_volunteer,
         volunteer_areas: mine.volunteer_areas ?? [],
         history_interest: mine.history_interest,
+        date_ranges: (
+          (mine as unknown as { ranges?: { starts_on: string; ends_on: string }[] }).ranges ?? []
+        ).map((r) => ({ starts_on: r.starts_on, ends_on: r.ends_on })),
+        suggested_locations: (mine as unknown as { suggested_locations?: string[] }).suggested_locations ?? [],
+        food_preferences: (mine as unknown as { food_preferences?: string[] }).food_preferences ?? [],
         notes: mine.notes ?? '',
       }
     : null

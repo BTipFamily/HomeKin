@@ -245,6 +245,10 @@ Run them in the Supabase SQL editor (or `supabase db push` if you use the CLI).
 | `025_attendees` | Named attendees on a signup, backfilled from `signups.guest_names` |
 | `026_interest_responses` | Typed interest survey per reunion; teaches `merge_members()` about it |
 | `027_event_booking_modes` | Direct/group events, group price tiers, and headcount functions the signups policy would otherwise hide |
+| `028_merge_helper` | `merge_dedup_move()` — the merge dedup rule stated once instead of five times |
+| `029_interest_dates_and_places` | Date ranges, location suggestions and food preferences on the interest form |
+| `030_member_support_needs` | Dietary/health/mobility on their own table with a real policy; volunteer fields on `members` |
+| `031_location_shortlist` | Committee shortlist of places and one-vote-per-member voting |
 
 If a feature's button appears but fails when clicked, an unapplied migration is
 the first thing to check — the UI does not gate on schema version.
