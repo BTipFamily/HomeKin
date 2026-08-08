@@ -12,6 +12,7 @@ import { updateMemberRole } from '@/lib/actions/members'
 import { createProxyMember } from '@/lib/actions/members'
 import { MIN_BIRTH_YEAR } from '@/lib/birthday'
 import { DeleteMemberButton } from './delete-member-button'
+import { InviteMemberButton } from './invite-member-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { Role } from '@/types/database'
@@ -201,6 +202,15 @@ export default async function AdminMembersPage() {
                   <Button variant="ghost" size="sm" asChild>
                     <Link href={`/directory/${member.id}`}>View</Link>
                   </Button>
+                  {/* Only the profiles nobody has claimed — anyone already
+                      signed in has no use for a signup link. */}
+                  {member.created_by_proxy && (
+                    <InviteMemberButton
+                      memberId={member.id}
+                      memberName={member.name}
+                      memberEmail={member.email}
+                    />
+                  )}
                   <DeleteMemberButton
                     memberId={member.id}
                     memberName={member.name}

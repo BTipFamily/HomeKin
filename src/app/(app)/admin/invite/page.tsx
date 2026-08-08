@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ArrowLeft } from 'lucide-react'
-import { CopyButton } from './copy-button'
+import { CopyButton } from '@/components/copy-button'
 import { GenerateInviteForm } from './generate-form'
 
 export default async function AdminInvitePage() {

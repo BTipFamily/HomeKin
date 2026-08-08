@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AlertCircle, CheckCircle2, Link2 } from 'lucide-react'
 import { generateInviteCode, type InviteCodeState } from '@/lib/actions/invite-codes'
-import { CopyButton } from './copy-button'
+import { CopyButton } from '@/components/copy-button'
 
 const INITIAL: InviteCodeState = { status: 'idle', message: '' }
 
