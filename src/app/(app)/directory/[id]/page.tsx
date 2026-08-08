@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { RoleBadge } from '@/components/role-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -113,9 +114,7 @@ export default async function MemberProfilePage({ params }: ProfilePageProps) {
                   )}
                   <div className="mt-2 flex items-center justify-center sm:justify-start gap-2">
                     {member.role !== 'member' && (
-                      <Badge variant="secondary" className="capitalize">
-                        {member.role}
-                      </Badge>
+                      <RoleBadge role={member.role} />
                     )}
                     {member.created_by_proxy && (
                       <Badge variant="outline">Profile not claimed</Badge>

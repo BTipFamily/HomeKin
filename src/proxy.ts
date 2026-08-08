@@ -57,11 +57,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Redirect authenticated users away from login/signup, unless they were sent
-  // here with an error (e.g. no matching member profile) — otherwise this
-  // creates an infinite redirect loop with /login?error=no_profile.
+  // Redirect authenticated users away from the landing page and login/signup,
+  // unless they were sent here with an error (e.g. no matching member profile)
+  // — otherwise this creates an infinite redirect loop with
+  // /login?error=no_profile.
+  //
+  // Doing this here rather than in the page is what lets `/` stay static: the
+  // session is already resolved above for every request, so the marketing page
+  // never has to read a cookie to find out who is looking at it.
   const hasError = request.nextUrl.searchParams.has('error')
-  if (user && !hasError && (pathname === '/login' || pathname === '/signup')) {
+  if (user && !hasError && (pathname === '/' || pathname === '/login' || pathname === '/signup')) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)

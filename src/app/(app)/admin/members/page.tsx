@@ -13,6 +13,7 @@ import { createProxyMember } from '@/lib/actions/members'
 import { MIN_BIRTH_YEAR } from '@/lib/birthday'
 import { DeleteMemberButton } from './delete-member-button'
 import { InviteMemberButton } from './invite-member-button'
+import { RoleBadge } from '@/components/role-badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { Role } from '@/types/database'
@@ -144,18 +145,7 @@ export default async function AdminMembersPage() {
                 )}
               </TableCell>
               <TableCell>
-                <Badge
-                  variant={
-                    member.role === 'admin'
-                      ? 'default'
-                      : member.role === 'committee'
-                      ? 'secondary'
-                      : 'outline'
-                  }
-                  className="capitalize"
-                >
-                  {member.role}
-                </Badge>
+                <RoleBadge role={member.role} />
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-1">

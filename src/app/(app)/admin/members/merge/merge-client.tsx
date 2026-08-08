@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { RoleBadge } from '@/components/role-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -332,9 +333,7 @@ function ProfileSummary({
           )}
           <div className="mt-1 flex flex-wrap gap-1">
             {member.role !== 'member' && (
-              <Badge variant="secondary" className="text-[10px] capitalize">
-                {member.role}
-              </Badge>
+              <RoleBadge role={member.role} className="text-[10px]" />
             )}
             <Badge variant="outline" className="text-[10px]">
               {member.auth_user_id ? 'Has login' : 'Never signed in'}

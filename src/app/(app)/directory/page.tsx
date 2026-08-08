@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { RoleBadge } from '@/components/role-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -182,9 +183,7 @@ function MemberCard({
             </div>
             <div className="mt-2 flex items-center gap-2">
               {member.role !== 'member' && (
-                <Badge variant="secondary" className="text-xs capitalize">
-                  {member.role}
-                </Badge>
+                <RoleBadge role={member.role} className="text-xs" />
               )}
               {member.created_by_proxy && (
                 <Badge variant="outline" className="text-xs">

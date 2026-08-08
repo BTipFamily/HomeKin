@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { AlertCircle, Check, Loader2, Mail } from 'lucide-react'
 import { sendInviteToMember, type MemberInviteResult } from '@/lib/actions/invite-codes'
+import { toast } from '@/components/ui/use-toast'
 
 /**
  * Emails a fresh invite code to one member, straight from their row.
@@ -47,6 +48,14 @@ export function InviteMemberButton({
         const result = await sendInviteToMember(memberId)
         if (result.status === 'sent') {
           setSent(true)
+          // Two cues on purpose. The check marks the row you clicked, which
+          // matters when working down a list; the toast is the one that says
+          // *where* it went and stays up long enough to actually read.
+          toast({
+            variant: 'success',
+            title: `Invite sent to ${memberName}`,
+            description: `Emailed to ${memberEmail} — the link is single-use and expires in 30 days.`,
+          })
           // Long enough to notice, short enough that the row is ready if they
           // need to send again.
           setTimeout(() => setSent(false), 4000)
