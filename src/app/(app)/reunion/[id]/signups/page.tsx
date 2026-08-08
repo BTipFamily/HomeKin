@@ -92,13 +92,13 @@ export default async function SignupsPage({ params, searchParams }: SignupsPageP
       <h1 className="mb-6 text-2xl font-bold">My Signups & Balance</h1>
 
       {payment === 'success' && (
-        <div className="mb-6 flex items-center gap-2 rounded-md bg-green-500/10 px-4 py-3 text-green-700">
+        <div className="mb-6 flex items-center gap-2 rounded-md bg-success/10 px-4 py-3 text-success-foreground">
           <CheckCircle className="h-4 w-4 shrink-0" />
           <span className="text-sm font-medium">Payment received! Your balance will update shortly.</span>
         </div>
       )}
       {payment === 'cancelled' && (
-        <div className="mb-6 flex items-center gap-2 rounded-md bg-amber-500/10 px-4 py-3 text-amber-700">
+        <div className="mb-6 flex items-center gap-2 rounded-md bg-warning/10 px-4 py-3 text-warning-foreground">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span className="text-sm">Payment was cancelled.</span>
         </div>
@@ -279,10 +279,10 @@ export default async function SignupsPage({ params, searchParams }: SignupsPageP
 
 function BalanceStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; className: string }> = {
-    unpaid: { label: 'Unpaid', className: 'border-red-200 text-red-700 bg-red-50' },
-    pending_confirmation: { label: 'Pending', className: 'border-amber-200 text-amber-700 bg-amber-50' },
-    partially_paid: { label: 'Partial', className: 'border-blue-200 text-blue-700 bg-blue-50' },
-    paid: { label: 'Paid', className: 'border-green-200 text-green-700 bg-green-50' },
+    unpaid: { label: 'Unpaid', className: 'border-danger-border bg-danger-surface text-danger-foreground' },
+    pending_confirmation: { label: 'Pending', className: 'border-warning-border text-warning-foreground bg-warning-surface' },
+    partially_paid: { label: 'Partial', className: 'border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950' },
+    paid: { label: 'Paid', className: 'border-success-border text-success-foreground bg-success-surface' },
   }
   const config = map[status] ?? { label: status, className: '' }
   return (

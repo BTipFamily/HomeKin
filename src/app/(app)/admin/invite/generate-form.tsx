@@ -52,14 +52,14 @@ export function GenerateInviteForm() {
         <div
           className={`rounded-lg border p-4 text-sm ${
             state.status === 'success'
-              ? 'border-green-200 bg-green-50 text-green-900'
-              : 'border-amber-200 bg-amber-50 text-amber-900'
+              ? 'border-success-border bg-success-surface text-success-foreground'
+              : 'border-warning-border bg-warning-surface text-warning-foreground'
           }`}
           aria-live="polite"
         >
           <div className="flex items-start gap-2">
             {state.status === 'success' ? (
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
             ) : (
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             )}
@@ -67,7 +67,7 @@ export function GenerateInviteForm() {
               <p>{state.message}</p>
               {state.signupUrl && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <code className="break-all rounded bg-white/70 px-2 py-1 text-xs">
+                  <code className="break-all rounded bg-background/60 px-2 py-1 text-xs">
                     {state.signupUrl}
                   </code>
                   <CopyButton text={state.signupUrl} />

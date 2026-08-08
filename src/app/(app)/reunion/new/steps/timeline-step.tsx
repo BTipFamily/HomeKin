@@ -69,7 +69,7 @@ export function TimelineStep({ startDate, options, onChange, onNext, onBack }: T
             </label>
           ))}
         </div>
-        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div className="mt-4 rounded-lg border border-warning-border bg-warning-surface p-4 text-sm text-warning-foreground">
           <p className="font-semibold">Built-In Convenience</p>
           <p className="mt-1">
             Your timeline includes suggested deadlines for RSVPs, payments, vendors, and final

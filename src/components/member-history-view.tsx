@@ -131,7 +131,7 @@ function Stat({
   tone?: 'good' | 'warn' | 'muted'
 }) {
   const colour =
-    tone === 'good' ? 'text-green-600' : tone === 'warn' ? 'text-amber-600' : 'text-foreground'
+    tone === 'good' ? 'text-success' : tone === 'warn' ? 'text-warning' : 'text-foreground'
   return (
     <div className="rounded-lg border p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
@@ -142,13 +142,13 @@ function Stat({
 
 export function BalanceBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; className: string }> = {
-    unpaid: { label: 'Unpaid', className: 'border-red-200 text-red-700 bg-red-50' },
+    unpaid: { label: 'Unpaid', className: 'border-danger-border bg-danger-surface text-danger-foreground' },
     pending_confirmation: {
       label: 'Awaiting confirmation',
-      className: 'border-amber-200 text-amber-700 bg-amber-50',
+      className: 'border-warning-border text-warning-foreground bg-warning-surface',
     },
-    partially_paid: { label: 'Part paid', className: 'border-blue-200 text-blue-700 bg-blue-50' },
-    paid: { label: 'Paid', className: 'border-green-200 text-green-700 bg-green-50' },
+    partially_paid: { label: 'Part paid', className: 'border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950' },
+    paid: { label: 'Paid', className: 'border-success-border text-success-foreground bg-success-surface' },
   }
   const config = map[status] ?? { label: status, className: '' }
   return (

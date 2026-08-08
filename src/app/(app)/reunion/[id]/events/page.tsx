@@ -115,7 +115,7 @@ export default async function EventsPage({ params }: EventsPageProps) {
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       {mySignup && (
-                        <Badge className="bg-green-500/10 text-green-700 border-green-200">
+                        <Badge className="bg-success/10 text-success-foreground border-success-border">
                           Signed up ({mySignup.headcount})
                         </Badge>
                       )}

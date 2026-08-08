@@ -134,7 +134,7 @@ export default function ReportClient({
                       <td className="px-4 py-2 text-right">{formatCurrency(d.expected)}</td>
                       <td className="px-4 py-2 text-right">{formatCurrency(d.collected)}</td>
                       <td
-                        className={`px-4 py-2 text-right ${d.short > 0 ? 'font-medium text-amber-600' : 'text-muted-foreground'}`}
+                        className={`px-4 py-2 text-right ${d.short > 0 ? 'font-medium text-warning' : 'text-muted-foreground'}`}
                       >
                         {formatCurrency(d.short)}
                       </td>
@@ -195,18 +195,18 @@ export default function ReportClient({
                           <td className="px-4 py-2 text-muted-foreground">{m.events}</td>
                           <td className="px-4 py-2 text-muted-foreground">{m.headcount}</td>
                           <td className="px-4 py-2 text-right">{formatCurrency(m.owed)}</td>
-                          <td className="px-4 py-2 text-right text-green-600">
+                          <td className="px-4 py-2 text-right text-success">
                             {formatCurrency(m.paid)}
                           </td>
                           <td className="px-4 py-2 text-right">
                             {m.outstanding > 0 ? (
-                              <span className="font-medium text-amber-600">
+                              <span className="font-medium text-warning">
                                 {formatCurrency(m.outstanding)}
                               </span>
                             ) : (
                               <Badge
                                 variant="outline"
-                                className="border-green-200 bg-green-50 text-xs text-green-700"
+                                className="border-success-border bg-success-surface text-xs text-success-foreground"
                               >
                                 Settled
                               </Badge>
@@ -262,7 +262,7 @@ function Stat({
   tone?: 'good' | 'warn' | 'muted'
 }) {
   const colour =
-    tone === 'good' ? 'text-green-600' : tone === 'warn' ? 'text-amber-600' : 'text-foreground'
+    tone === 'good' ? 'text-success' : tone === 'warn' ? 'text-warning' : 'text-foreground'
   return (
     <Card>
       <CardContent className="pt-6">

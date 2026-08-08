@@ -62,9 +62,9 @@ export function AnnouncementForm({
           aria-live="polite"
           className={`rounded-md px-3 py-2 text-sm ${
             state.status === 'success'
-              ? 'bg-green-500/10 text-green-700'
+              ? 'bg-success/10 text-success-foreground'
               : state.status === 'warning'
-              ? 'bg-amber-500/10 text-amber-800'
+              ? 'bg-warning/10 text-warning-foreground'
               : 'bg-destructive/10 text-destructive'
           }`}
         >

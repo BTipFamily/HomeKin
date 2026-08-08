@@ -105,13 +105,13 @@ export default function ImportClient({ isAdmin }: { isAdmin: boolean }) {
   if (result) {
     return (
       <div className="space-y-4">
-        <Card className="border-green-200 bg-green-50">
+        <Card className="border-success-border bg-success-surface">
           <CardContent className="pt-6">
             <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success" />
               <div>
-                <p className="font-semibold text-green-900">Import complete</p>
-                <ul className="mt-2 space-y-1 text-sm text-green-900">
+                <p className="font-semibold text-success-foreground">Import complete</p>
+                <ul className="mt-2 space-y-1 text-sm text-success-foreground">
                   <li>{result.membersCreated} member{result.membersCreated === 1 ? '' : 's'} added</li>
                   {result.membersSkipped > 0 && (
                     <li>
@@ -131,7 +131,7 @@ export default function ImportClient({ isAdmin }: { isAdmin: boolean }) {
         </Card>
 
         {result.writeErrors.length > 0 && (
-          <Card className="border-amber-200">
+          <Card className="border-warning-border">
             <CardHeader>
               <CardTitle className="text-base">Some rows could not be saved</CardTitle>
             </CardHeader>
@@ -216,7 +216,7 @@ export default function ImportClient({ isAdmin }: { isAdmin: boolean }) {
                 </p>
               </div>
             </div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">
+            <div className="rounded-lg border border-warning-border bg-warning-surface p-3 text-warning-foreground">
               <p className="flex items-center gap-1.5 font-medium">
                 <Info className="h-3.5 w-3.5" />
                 Linking families
@@ -319,7 +319,7 @@ export default function ImportClient({ isAdmin }: { isAdmin: boolean }) {
               <SummaryTile
                 label="To be added"
                 value={plan.summary.toCreate}
-                icon={<Users className="h-5 w-5 text-green-600" />}
+                icon={<Users className="h-5 w-5 text-success" />}
               />
               <SummaryTile
                 label="Already in directory"
@@ -330,7 +330,7 @@ export default function ImportClient({ isAdmin }: { isAdmin: boolean }) {
               <SummaryTile
                 label="Relationships"
                 value={plan.summary.relationships}
-                icon={<Users className="h-5 w-5 text-blue-600" />}
+                icon={<Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />}
               />
             </div>
 
@@ -356,9 +356,9 @@ export default function ImportClient({ isAdmin }: { isAdmin: boolean }) {
             )}
 
             {plan.warnings.length > 0 && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-                <p className="font-medium text-amber-900">Notes</p>
-                <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-sm text-amber-900">
+              <div className="rounded-lg border border-warning-border bg-warning-surface p-4">
+                <p className="font-medium text-warning-foreground">Notes</p>
+                <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-sm text-warning-foreground">
                   {plan.warnings.map((issue, i) => (
                     <li key={i}>
                       {issue.row > 1 ? `Row ${issue.row}: ` : ''}
@@ -396,7 +396,7 @@ export default function ImportClient({ isAdmin }: { isAdmin: boolean }) {
                           </TableCell>
                           <TableCell className="text-right">
                             {rowHasError ? (
-                              <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+                              <Badge variant="outline" className="border-danger-border bg-danger-surface text-danger-foreground">
                                 Error
                               </Badge>
                             ) : person.alreadyExists ? (
@@ -404,7 +404,7 @@ export default function ImportClient({ isAdmin }: { isAdmin: boolean }) {
                             ) : (
                               <Badge
                                 variant="outline"
-                                className="border-green-200 bg-green-50 text-green-700"
+                                className="border-success-border bg-success-surface text-success-foreground"
                               >
                                 Add
                               </Badge>

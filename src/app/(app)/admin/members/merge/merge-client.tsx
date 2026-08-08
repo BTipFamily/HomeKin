@@ -103,7 +103,7 @@ export default function MergeClient({ initialPairs }: { initialPairs: DuplicateP
             {preview.warnings.map((message, i) => (
               <div
                 key={i}
-                className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+                className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-surface p-4 text-sm text-warning-foreground"
               >
                 <Info className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{message}</span>
@@ -191,11 +191,11 @@ export default function MergeClient({ initialPairs }: { initialPairs: DuplicateP
   return (
     <div className="space-y-4">
       {outcome && (
-        <Card className="border-green-200 bg-green-50">
+        <Card className="border-success-border bg-success-surface">
           <CardContent className="pt-6">
             <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
-              <div className="text-sm text-green-900">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success" />
+              <div className="text-sm text-success-foreground">
                 <p className="font-semibold">
                   Merged — {outcome.removedName}
                   {outcome.removedEmail ? ` (${outcome.removedEmail})` : ''} has been removed.
@@ -306,7 +306,7 @@ function ProfileSummary({
   return (
     <div
       className={`rounded-lg border p-3 ${
-        tone === 'keep' ? 'border-green-200 bg-green-50/50' : 'border-muted bg-muted/30'
+        tone === 'keep' ? 'border-success-border bg-success-surface/50' : 'border-muted bg-muted/30'
       }`}
     >
       <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
