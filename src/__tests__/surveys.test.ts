@@ -158,6 +158,34 @@ describe('pruneHiddenAnswers', () => {
   })
 })
 
+describe('coming back to a survey you already answered', () => {
+  // The page now hands stored answers straight back to the form as its starting
+  // state, so what pruneHiddenAnswers wrote has to be something the form can be
+  // seeded with — including the keys it deliberately left out.
+  it('round-trips a pruned response back through the form logic', () => {
+    const stored = pruneHiddenAnswers(LOCATION_SURVEY, { '0': 'Main Hall', '1': 'stale' })
+    expect(stored).toEqual({ '0': 'Main Hall' })
+
+    // Re-opened with those answers: question 2 stays hidden, nothing blocks.
+    expect(visibleQuestionIndices(LOCATION_SURVEY, stored)).toEqual([0])
+    expect(validateSurveyAnswers(LOCATION_SURVEY, stored)).toEqual([])
+  })
+
+  it('reads a missing key as unanswered rather than throwing', () => {
+    // Absent is the normal case now, not a broken row.
+    expect(isQuestionVisible(LOCATION_SURVEY, {}, 1)).toBe(false)
+    expect(validateSurveyAnswers([{ question: 'Optional', type: 'free_text' }], {})).toEqual([])
+  })
+
+  it('lets someone revise into the conditional branch', () => {
+    const stored = { '0': 'Main Hall' }
+    const revised = pruneHiddenAnswers(LOCATION_SURVEY, { ...stored, '0': 'Other Location' })
+    expect(visibleQuestionIndices(LOCATION_SURVEY, revised)).toEqual([0, 1])
+    // ...and the newly revealed question now blocks until they fill it in.
+    expect(validateSurveyAnswers(LOCATION_SURVEY, revised)).toHaveLength(1)
+  })
+})
+
 describe('availableTriggers', () => {
   const questions: SurveyQuestion[] = [
     { question: 'Free text one', type: 'free_text' },

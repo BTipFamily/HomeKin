@@ -114,10 +114,15 @@ export default function SurveyBuilder({ reunionId }: SurveyBuilderProps) {
     setError(null)
     startTransition(async () => {
       try {
-        await createSurvey(reunionId, title.trim(), questions)
-        router.push(`/reunion/${reunionId}/surveys`)
-      } catch (e: any) {
-        setError(e.message)
+        const result = await createSurvey(reunionId, title.trim(), questions)
+        if (result.status === 'created') {
+          router.push(`/reunion/${reunionId}/surveys`)
+          return
+        }
+        setProblems(result.problems ?? [])
+        setError(result.problems?.length ? null : result.message)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'The survey could not be created.')
       }
     })
   }

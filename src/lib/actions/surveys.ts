@@ -15,16 +15,21 @@ import {
 // imports the type from this module.
 export type { SurveyQuestion, SurveyAnswers }
 
+export type CreateSurveyResult =
+  | { status: 'created'; id: string }
+  | { status: 'blocked'; message: string; problems?: string[] }
+
+/** Building a survey. Committee and admins only — members answer, they don't author. */
 export async function createSurvey(
   reunionId: string,
   title: string,
   questions: SurveyQuestion[]
-) {
+): Promise<CreateSurveyResult> {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
+  if (!user) return { status: 'blocked', message: 'You are not signed in.' }
 
   const { data: member } = await supabase
     .from('members')
@@ -32,14 +37,16 @@ export async function createSurvey(
     .eq('auth_user_id', user.id)
     .single()
   if (!member || !['committee', 'admin'].includes(member.role)) {
-    throw new Error('Committee access required')
+    return { status: 'blocked', message: 'Committee or admin access is needed to build a survey.' }
   }
 
   // Checked here as well as in the builder. The builder's copy is what someone
   // reads; this is what stops a malformed survey reaching the column, which has
   // no shape constraint of its own.
   const problems = validateSurveyDefinition(title, questions)
-  if (problems.length > 0) throw new Error(problems.join(' '))
+  if (problems.length > 0) {
+    return { status: 'blocked', message: 'This survey is not ready yet.', problems }
+  }
 
   const { data, error } = await supabase
     .from('surveys')
@@ -52,28 +59,60 @@ export async function createSurvey(
     .select('id')
     .single()
 
-  if (error) throw new Error(error.message)
+  if (error) return { status: 'blocked', message: error.message }
+
   revalidatePath(`/reunion/${reunionId}/surveys`)
-  return data.id
+  return { status: 'created', id: data.id }
 }
 
+export type SurveyResponseResult =
+  | { status: 'saved' }
+  | { status: 'blocked'; message: string; problems?: string[] }
+
+/**
+ * Postgres refusing a write because of row-level security.
+ *
+ * Worth naming rather than passing through: the raw message says a policy was
+ * violated, which reads like the member did something wrong when in fact the
+ * database is missing a policy nobody has applied yet.
+ */
+function isRlsRefusal(error: { code?: string; message?: string }): boolean {
+  return (
+    error.code === '42501' ||
+    (error.message ?? '').toLowerCase().includes('row-level security')
+  )
+}
+
+/**
+ * Records someone's answers.
+ *
+ * Returns its failures rather than throwing them. A thrown Server Action gives
+ * the reader Next's generic error with the reason stripped and only a digest to
+ * show for it — which is exactly the report this was written in response to.
+ * Anything a person could act on has to come back as a value.
+ */
 export async function submitSurveyResponse(
   surveyId: string,
   reunionId: string,
   answers: SurveyAnswers
-) {
+): Promise<SurveyResponseResult> {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
+  if (!user) return { status: 'blocked', message: 'You are not signed in.' }
 
   const { data: member } = await supabase
     .from('members')
     .select('id')
     .eq('auth_user_id', user.id)
     .single()
-  if (!member) throw new Error('Member not found')
+  if (!member) {
+    return {
+      status: 'blocked',
+      message: 'Your account is not linked to a profile in the directory, so there is nowhere to record an answer. Ask an admin to check your profile.',
+    }
+  }
 
   // The survey is re-read rather than trusted from the caller: which questions
   // are required, and which are only asked in some cases, are facts about the
@@ -84,7 +123,9 @@ export async function submitSurveyResponse(
     .eq('id', surveyId)
     .eq('reunion_id', reunionId)
     .single()
-  if (!survey) throw new Error('That survey no longer exists.')
+  if (!survey) {
+    return { status: 'blocked', message: 'That survey no longer exists.' }
+  }
 
   const questions: SurveyQuestion[] = Array.isArray(survey.questions) ? survey.questions : []
 
@@ -92,7 +133,9 @@ export async function submitSurveyResponse(
   // can never satisfy a requirement — or be stored.
   const kept = pruneHiddenAnswers(questions, answers)
   const problems = validateSurveyAnswers(questions, kept)
-  if (problems.length > 0) throw new Error(problems.join(' '))
+  if (problems.length > 0) {
+    return { status: 'blocked', message: 'Some answers are still needed.', problems }
+  }
 
   const { error } = await supabase.from('survey_responses').upsert(
     {
@@ -103,6 +146,21 @@ export async function submitSurveyResponse(
     { onConflict: 'survey_id,member_id' }
   )
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    if (isRlsRefusal(error)) {
+      // Changing an answer is an UPDATE, and the policy allowing it arrived in
+      // migration 032. A file in the repo does nothing until it is applied.
+      return {
+        status: 'blocked',
+        message:
+          'The database refused to save that. If you have answered this survey before, ' +
+          'the policy that allows changing an answer is in migration ' +
+          '032_survey_response_update.sql — ask an admin whether it has been applied.',
+      }
+    }
+    return { status: 'blocked', message: error.message }
+  }
+
   revalidatePath(`/reunion/${reunionId}/surveys/${surveyId}`)
+  return { status: 'saved' }
 }

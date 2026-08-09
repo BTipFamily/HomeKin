@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle, Check, Loader2 } from 'lucide-react'
 import { submitSurveyResponse } from '@/lib/actions/surveys'
 import {
   pruneHiddenAnswers,
@@ -41,6 +41,7 @@ export function SurveyResponseForm({
   const [answers, setAnswers] = useState<SurveyAnswers>(initialAnswers ?? {})
   const [problems, setProblems] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
 
   const visible = useMemo(() => visibleQuestionIndices(questions, answers), [questions, answers])
 
@@ -53,6 +54,7 @@ export function SurveyResponseForm({
     })
     setProblems([])
     setError(null)
+    setSaved(false)
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -69,9 +71,19 @@ export function SurveyResponseForm({
 
     startTransition(async () => {
       try {
-        await submitSurveyResponse(surveyId, reunionId, kept)
-        router.refresh()
+        const result = await submitSurveyResponse(surveyId, reunionId, kept)
+        if (result.status === 'saved') {
+          setSaved(true)
+          router.refresh()
+          return
+        }
+        // The action returns its reasons rather than throwing them, so this is a
+        // sentence someone can act on instead of a redacted digest.
+        setProblems(result.problems ?? [])
+        setError(result.problems?.length ? null : result.message)
       } catch (e) {
+        // Backstop for a genuine transport failure — the action itself no
+        // longer throws for anything the reader could do something about.
         setError(e instanceof Error ? e.message : 'Your response could not be saved.')
       }
     })
@@ -147,10 +159,18 @@ export function SurveyResponseForm({
         </p>
       )}
 
-      <Button type="submit" disabled={isPending}>
-        {isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-        Submit Response
-      </Button>
+      <div className="flex items-center gap-3">
+        <Button type="submit" disabled={isPending}>
+          {isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+          {initialAnswers ? 'Save changes' : 'Submit Response'}
+        </Button>
+        {saved && (
+          <span className="flex items-center gap-1 text-sm text-success" role="status">
+            <Check className="h-4 w-4" />
+            Saved
+          </span>
+        )}
+      </div>
     </form>
   )
 }
