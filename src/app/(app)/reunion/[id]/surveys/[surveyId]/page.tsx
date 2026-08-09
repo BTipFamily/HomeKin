@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, BarChart3 } from 'lucide-react'
-import { submitSurveyResponse, type SurveyQuestion } from '@/lib/actions/surveys'
+import type { SurveyQuestion } from '@/lib/actions/surveys'
+import { SurveyResponseForm } from './survey-response-form'
 
 interface SurveyPageProps {
   params: Promise<{ id: string; surveyId: string }>
@@ -64,16 +65,6 @@ export default async function SurveyDetailPage({ params }: SurveyPageProps) {
     responseCount = allResponses.length
   }
 
-  async function handleSubmit(formData: FormData) {
-    'use server'
-    const answers: Record<number, string> = {}
-    questions.forEach((_, qi) => {
-      answers[qi] = (formData.get(`q_${qi}`) as string) ?? ''
-    })
-    await submitSurveyResponse(surveyId, id, answers)
-    redirect(`/reunion/${id}/surveys/${surveyId}`)
-  }
-
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
       <Button variant="ghost" size="sm" asChild className="mb-4 -ml-2">
@@ -112,39 +103,11 @@ export default async function SurveyDetailPage({ params }: SurveyPageProps) {
                 <p className="text-xs text-muted-foreground">You've already responded to this survey.</p>
               </div>
             ) : (
-              <form action={handleSubmit} className="space-y-5">
-                {questions.map((q, qi) => (
-                  <div key={qi}>
-                    <label className="block text-sm font-medium mb-1.5">
-                      {qi + 1}. {q.question}
-                    </label>
-                    {q.type === 'multiple_choice' && q.options ? (
-                      <div className="space-y-1.5">
-                        {q.options.filter(Boolean).map((opt, oi) => (
-                          <label key={oi} className="flex items-center gap-2 text-sm cursor-pointer">
-                            <input
-                              type="radio"
-                              name={`q_${qi}`}
-                              value={opt}
-                              required
-                              className="accent-primary"
-                            />
-                            {opt}
-                          </label>
-                        ))}
-                      </div>
-                    ) : (
-                      <textarea
-                        name={`q_${qi}`}
-                        rows={2}
-                        required
-                        className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
-                      />
-                    )}
-                  </div>
-                ))}
-                <Button type="submit">Submit Response</Button>
-              </form>
+              <SurveyResponseForm
+                surveyId={surveyId}
+                reunionId={id}
+                questions={questions}
+              />
             )}
           </CardContent>
         </Card>

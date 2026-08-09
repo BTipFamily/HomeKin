@@ -32,9 +32,19 @@ export default function Guide() {
         </Step>
         <Step n={2} title="Answer and submit">
           <p>
-            Questions are either free text or multiple choice. Submitting again{' '}
-            <strong>replaces</strong> your previous answers rather than adding a second response,
-            so it is safe to change your mind.
+            Questions are either free text or multiple choice. Anything marked with a{' '}
+            <span className="text-destructive">*</span> has to be answered; everything else can be
+            left blank, and skipping it will not stop you submitting.
+          </p>
+          <p>
+            Some questions only appear once they apply — a &quot;which other location?&quot;
+            follow-up shows up when, and only when, you pick <UI>Other Location</UI> above it. If
+            you change that answer afterwards, the follow-up disappears again and what you typed
+            in it is discarded rather than quietly submitted.
+          </p>
+          <p>
+            Submitting again <strong>replaces</strong> your previous answers rather than adding a
+            second response, so it is safe to change your mind.
           </p>
         </Step>
       </Steps>
@@ -45,6 +55,20 @@ export default function Guide() {
         title, then add questions one at a time, choosing free text or multiple choice. Multiple
         choice questions take as many options as you need.
       </P>
+      <P>
+        Each question has two further settings. <UI>Must be answered</UI> makes it required —
+        leave it off and people can skip the question, which is the right default for anything
+        you are merely curious about. <UI>Only ask this if…</UI> hides the question until an
+        earlier multiple-choice question is answered a particular way, which is how you pair
+        &quot;Other Location&quot; with a box asking where.
+      </P>
+      <GuideNote variant="tip" title="Ask for the follow-up, not from everybody">
+        <p>
+          A required free-text box that everyone must fill in is the fastest way to get a survey
+          full of &quot;n/a&quot;. Make the follow-up conditional instead: then it is only
+          required of the people it is actually for, and everyone else never sees it.
+        </p>
+      </GuideNote>
       <Screen label="New survey">
         <div className="max-w-lg space-y-3">
           <div className="space-y-1">
