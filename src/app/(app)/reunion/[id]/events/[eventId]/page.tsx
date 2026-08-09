@@ -84,22 +84,17 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
                     Edit
                   </Link>
                 </Button>
-                <form
-                  action={async () => {
-                    'use server'
-                    await deleteSubEvent(eventId, id)
-                  }}
+                <ActionButton
+                  action={deleteSubEvent.bind(null, eventId, id)}
+                  label="Delete this event"
+                  variant="destructive"
+                  size="sm"
+                  className="gap-1.5"
+                  confirm="Delete this event? Its signups and balances go too."
                 >
-                  <Button
-                    type="submit"
-                    variant="destructive"
-                    size="sm"
-                    className="gap-1.5"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete
-                  </Button>
-                </form>
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete
+                </ActionButton>
               </div>
             )}
           </div>

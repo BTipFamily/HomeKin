@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { sendBulkEmail } from '@/lib/email'
+import { actionSuccess, failedWith, type ActionState } from '@/lib/action-state'
 import { escapeHtml } from '@/lib/email-layout'
 
 export type AnnouncementState = {
@@ -128,7 +129,7 @@ export async function createAnnouncement(
   }
 }
 
-export async function deleteAnnouncement(announcementId: string, reunionId: string) {
+async function applyDeleteAnnouncement(announcementId: string, reunionId: string) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -176,4 +177,18 @@ export async function togglePinAnnouncement(announcementId: string, reunionId: s
 
   if (error) throw new Error(error.message)
   revalidatePath(`/reunion/${reunionId}`)
+}
+
+/** Removing a post. Arguments are bound at the call site. */
+export async function deleteAnnouncement(
+  announcementId: string,
+  reunionId: string,
+  _prevState: ActionState
+): Promise<ActionState> {
+  try {
+    await applyDeleteAnnouncement(announcementId, reunionId)
+  } catch (e) {
+    return failedWith(e, 'That announcement could not be removed.')
+  }
+  return actionSuccess('Removed.')
 }

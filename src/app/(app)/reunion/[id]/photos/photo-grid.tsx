@@ -5,6 +5,7 @@ import { Trash2, X, ChevronLeft, ChevronRight, Heart, MessageCircle, Play } from
 import { formatDuration } from '@/lib/media'
 import { Button } from '@/components/ui/button'
 import { deletePhoto } from '@/lib/actions/photos'
+import { ActionButton } from '@/components/action-button'
 import { EMPTY_LIKE_SUMMARY, type LikeSummary, type PhotoComment } from '@/lib/photo-social'
 import type { Role } from '@/types/database'
 import { PhotoSocialPanel } from './photo-social-panel'
@@ -119,25 +120,24 @@ export function PhotoGrid({
                   )}
                 </div>
               )}
+              {/* The hover-hiding is on the button, not on the wrapper: if the
+                  wrapper were hidden the refusal message would disappear the
+                  moment the mouse left the tile, which is exactly when somebody
+                  would be looking for it. */}
               {canDelete && (
-                <form
-                  action={async () => {
-                    await deletePhoto(photo.id, reunionId)
-                  }}
-                  className="absolute right-1 top-1 hidden group-hover:block"
-                >
-                  <Button
-                    type="submit"
+                <div className="absolute right-1 top-1">
+                  <ActionButton
+                    action={deletePhoto.bind(null, photo.id, reunionId)}
+                    label="Delete this photo"
                     size="icon"
                     variant="destructive"
-                    className="h-6 w-6"
-                    onClick={(e) => {
-                      if (!confirm('Delete this photo?')) e.preventDefault()
-                    }}
+                    className="h-6 w-6 hidden group-hover:inline-flex focus-visible:inline-flex"
+                    confirm="Delete this photo?"
+                    messageClassName="absolute right-0 top-7 w-40 rounded bg-card p-1 text-right shadow"
                   >
                     <Trash2 className="h-3 w-3" />
-                  </Button>
-                </form>
+                  </ActionButton>
+                </div>
               )}
 
               {/* Always visible, unlike the caption: a count nobody can see is

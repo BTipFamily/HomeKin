@@ -14,6 +14,8 @@ import { MIN_BIRTH_YEAR } from '@/lib/birthday'
 import { DeleteMemberButton } from './delete-member-button'
 import { InviteMemberButton } from './invite-member-button'
 import { RoleBadge } from '@/components/role-badge'
+import { ActionForm } from '@/components/action-form'
+import { ActionButton } from '@/components/action-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { Role } from '@/types/database'
@@ -71,7 +73,13 @@ export default async function AdminMembersPage() {
           <CardTitle className="text-base">Add a Member Profile</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={createProxyMember} className="grid gap-4 sm:grid-cols-2">
+          <ActionForm
+            action={createProxyMember}
+            submitLabel="Create Profile"
+            pendingLabel="Creating…"
+            errorTitle="That profile was not created"
+            className="grid gap-4 sm:grid-cols-2"
+          >
             <div className="space-y-1">
               <Label htmlFor="name">Full Name *</Label>
               <Input id="name" name="name" required placeholder="Jane Smith" />
@@ -98,13 +106,10 @@ export default async function AdminMembersPage() {
                 max={new Date().toISOString().slice(0, 10)}
               />
             </div>
-            <div className="sm:col-span-2">
-              <Button type="submit">Create Profile</Button>
-              <p className="mt-1 text-xs text-muted-foreground">
-                This creates a placeholder profile. They can claim it by signing up with the same email.
-              </p>
-            </div>
-          </form>
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              This creates a placeholder profile. They can claim it by signing up with the same email.
+            </p>
+          </ActionForm>
         </CardContent>
       </Card>
 
@@ -151,42 +156,19 @@ export default async function AdminMembersPage() {
                 <div className="flex items-center justify-end gap-1">
                   {member.id !== currentMember?.id && (
                     <>
-                      {member.role !== 'member' && (
-                        <form
-                          action={async () => {
-                            'use server'
-                            await updateMemberRole(member.id, 'member')
-                          }}
-                        >
-                          <Button type="submit" variant="ghost" size="sm" className="text-xs">
-                            → Member
-                          </Button>
-                        </form>
-                      )}
-                      {member.role !== 'committee' && (
-                        <form
-                          action={async () => {
-                            'use server'
-                            await updateMemberRole(member.id, 'committee')
-                          }}
-                        >
-                          <Button type="submit" variant="ghost" size="sm" className="text-xs">
-                            → Committee
-                          </Button>
-                        </form>
-                      )}
-                      {member.role !== 'admin' && (
-                        <form
-                          action={async () => {
-                            'use server'
-                            await updateMemberRole(member.id, 'admin')
-                          }}
-                        >
-                          <Button type="submit" variant="ghost" size="sm" className="text-xs">
-                            → Admin
-                          </Button>
-                        </form>
-                      )}
+                      {(['member', 'committee', 'admin'] as const)
+                        .filter((role) => role !== member.role)
+                        .map((role) => (
+                          <ActionButton
+                            key={role}
+                            action={updateMemberRole.bind(null, member.id, role)}
+                            label={`Make ${member.name} ${role}`}
+                            size="sm"
+                            className="text-xs"
+                          >
+                            → {role.charAt(0).toUpperCase() + role.slice(1)}
+                          </ActionButton>
+                        ))}
                     </>
                   )}
                   <Button variant="ghost" size="sm" asChild>

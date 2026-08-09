@@ -29,6 +29,40 @@ function serverActionModules(): { name: string; source: string }[] {
     .filter((f) => /^\s*['"]use server['"]/.test(f.source))
 }
 
+// The actions behind a form or a row button. Each one used to throw, which
+// meant its failure reached the user as Next's redacted placeholder — no
+// capacity message, no overpayment message, no "that is not yours to delete".
+// Listed rather than inferred: the point is that removing a return type here
+// has to be a deliberate act, not something a refactor does quietly.
+const MUST_RETURN_STATE: Record<string, string[]> = {
+  'signups.ts': ['upsertSignup', 'cancelSignup'],
+  'balances.ts': ['reportManualPayment', 'confirmPayment', 'deletePayment'],
+  'members.ts': ['updateMemberProfile', 'createProxyMember', 'updateMemberRole'],
+  'reunions.ts': ['updateReunion'],
+  'relationships.ts': ['deleteRelationship'],
+  'announcements.ts': ['deleteAnnouncement'],
+  'photos.ts': ['deletePhoto'],
+  'sub-events.ts': ['deleteSubEvent', 'createSubEvent', 'updateSubEvent'],
+}
+
+describe('actions a form posts to', () => {
+  it('return their failures rather than throwing them', () => {
+    for (const [file, actions] of Object.entries(MUST_RETURN_STATE)) {
+      const source = readFileSync(join(ACTIONS_DIR, file), 'utf8')
+      for (const action of actions) {
+        const signature = new RegExp(
+          `export async function ${action}\\b[\\s\\S]*?\\)\\s*:\\s*Promise<(ActionState|EventFormState|AnnouncementState)>`
+        )
+        expect(
+          signature.test(source),
+          `${file}::${action} must declare Promise<…State>. Without it the form has ` +
+            `nothing to render and the reason is lost to React's production redaction.`
+        ).toBe(true)
+      }
+    }
+  })
+})
+
 describe("'use server' modules", () => {
   const modules = serverActionModules()
 

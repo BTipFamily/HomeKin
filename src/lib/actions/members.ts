@@ -140,7 +140,7 @@ async function saveSupportNeeds(
   if (error) throw new Error(error.message)
 }
 
-export async function createProxyMember(formData: FormData) {
+async function applyProxyMember(formData: FormData) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -182,7 +182,7 @@ export async function createProxyMember(formData: FormData) {
   revalidatePath('/admin/members')
 }
 
-export async function updateMemberRole(memberId: string, role: Role) {
+async function applyMemberRole(memberId: string, role: Role) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -238,4 +238,34 @@ export async function updateMemberProfile(
     return failedWith(e, 'Your profile could not be saved.')
   }
   return actionSuccess('Profile saved.')
+}
+
+/** Creating a placeholder profile for somebody who has not signed up. */
+export async function createProxyMember(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  try {
+    await applyProxyMember(formData)
+  } catch (e) {
+    // A duplicate email arrives here as a raw Postgres unique-violation, which
+    // is unhelpful but still far better than the redacted placeholder — and it
+    // is the single most likely thing to go wrong on this form.
+    return failedWith(e, 'That profile could not be created.')
+  }
+  return actionSuccess('Profile created.')
+}
+
+/** Promoting or demoting somebody. Arguments are bound at the call site. */
+export async function updateMemberRole(
+  memberId: string,
+  role: Role,
+  _prevState: ActionState
+): Promise<ActionState> {
+  try {
+    await applyMemberRole(memberId, role)
+  } catch (e) {
+    return failedWith(e, 'That role could not be changed.')
+  }
+  return actionSuccess(`Now ${role}.`)
 }

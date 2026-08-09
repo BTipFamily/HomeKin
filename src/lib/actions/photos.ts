@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { actionSuccess, failedWith, type ActionState } from '@/lib/action-state'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 /**
@@ -15,7 +16,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
  * nobody could clear. The paths are also taken from the row rather than from
  * the caller, who could otherwise name any object in the bucket.
  */
-export async function deletePhoto(photoId: string, reunionId: string) {
+async function applyDeletePhoto(photoId: string, reunionId: string) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -47,4 +48,23 @@ export async function deletePhoto(photoId: string, reunionId: string) {
   if (storageError) console.error('Storage delete error:', storageError)
 
   revalidatePath(`/reunion/${reunionId}/photos`)
+}
+
+/**
+ * Removing a photo. Arguments are bound at the call site.
+ *
+ * Rescues "That is not yours to delete" — deliberately human wording for the
+ * refused case that, thrown, arrived as the redacted generic error.
+ */
+export async function deletePhoto(
+  photoId: string,
+  reunionId: string,
+  _prevState: ActionState
+): Promise<ActionState> {
+  try {
+    await applyDeletePhoto(photoId, reunionId)
+  } catch (e) {
+    return failedWith(e, 'That photo could not be deleted.')
+  }
+  return actionSuccess('Deleted.')
 }
