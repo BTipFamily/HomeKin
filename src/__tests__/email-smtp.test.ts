@@ -10,6 +10,7 @@ import { buildConfirmUrl, confirmationEmailHtml } from '@/lib/signup-confirmatio
 import { buildSchedule } from '@/lib/payment-schedule'
 import { reminderHtml, reminderSubject } from '@/lib/reminder-email'
 import { statementHtml, statementSubject } from '@/lib/statement-email'
+import { inviteEmailHtml, inviteEmailSubject } from '@/lib/invite-email'
 import { startTestSmtpServer, type TestSmtpServer } from './helpers/smtp-test-server'
 import type { AddressObject } from 'mailparser'
 
@@ -371,5 +372,65 @@ describe('the statement email over SMTP', () => {
     expect(message.parsed.subject).toBe('Smith Family Reunion: $50.00 due in 14 days')
     expect(String(message.parsed.html)).toContain('March 1, 2026')
     expect(String(message.parsed.html)).toContain('$50.00')
+  })
+})
+
+// The assertion the change was made for. Everything above proves what we
+// *intended* to send; this proves what came off the wire — and a text/plain part
+// is only worth anything if it is really there, in a real multipart/alternative,
+// with the link still in it.
+describe('the plain-text alternative, on the wire', () => {
+  const SIGNUP_URL = 'https://homekin.example.com/signup?code=FPELS4TQ'
+
+  test('every message carries both parts, not HTML alone', async () => {
+    smtp = await startTestSmtpServer()
+    useServer(smtp)
+
+    await sendEmail({
+      to: 'cousin@example.com',
+      subject: 'Reunion news',
+      html: '<p>See you in July</p>',
+    })
+
+    const [message] = smtp.messages
+    expect(String(message.parsed.html)).toContain('See you in July')
+    expect(message.parsed.text?.trim()).toBe('See you in July')
+  })
+
+  test('an invite keeps its signup link in the text part', async () => {
+    smtp = await startTestSmtpServer()
+    useServer(smtp)
+
+    await sendEmail({
+      to: 'cousin@example.com',
+      subject: inviteEmailSubject('William Tipton'),
+      html: inviteEmailHtml({
+        signupUrl: SIGNUP_URL,
+        inviterName: 'William Tipton',
+        recipientName: 'Ali',
+        expiresOn: '2026-09-08',
+      }),
+    })
+
+    const text = smtp.messages[0].parsed.text ?? ''
+    // Quoted-printable soft-wraps long lines; if the URL did not survive
+    // encoding, an invite would arrive unusable rather than merely ugly.
+    expect(text).toContain(SIGNUP_URL)
+    expect(text).toContain('Hi Ali,')
+    expect(text).not.toContain('<p')
+  })
+
+  test('a bulk announcement carries a text part too', async () => {
+    smtp = await startTestSmtpServer()
+    useServer(smtp)
+
+    await sendBulkEmail({
+      recipients: ['a@example.com', 'b@example.com'],
+      subject: 'Picnic moved',
+      html: '<p>The picnic is now on the 19th.</p>',
+    })
+
+    const [message] = smtp.messages
+    expect(message.parsed.text?.trim()).toBe('The picnic is now on the 19th.')
   })
 })
