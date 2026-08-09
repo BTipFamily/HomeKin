@@ -3,12 +3,25 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, BarChart3 } from 'lucide-react'
-import { submitSurveyResponse, type SurveyQuestion } from '@/lib/actions/surveys'
+import type { SurveyAnswers, SurveyQuestion } from '@/lib/actions/surveys'
+import { SurveyResponseForm } from './survey-response-form'
 
 interface SurveyPageProps {
   params: Promise<{ id: string; surveyId: string }>
+}
+
+/**
+ * One answer out of a stored response.
+ *
+ * `answers` is jsonb with no shape constraint, so it is read rather than
+ * trusted — and since hidden questions are pruned instead of blanked, a missing
+ * key means "not asked", not "corrupt row".
+ */
+function readAnswer(answers: unknown, index: number): string {
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) return ''
+  const value = (answers as Record<string, unknown>)[String(index)]
+  return typeof value === 'string' ? value : ''
 }
 
 export default async function SurveyDetailPage({ params }: SurveyPageProps) {
@@ -50,28 +63,33 @@ export default async function SurveyDetailPage({ params }: SurveyPageProps) {
     .eq('member_id', member.id)
     .maybeSingle()
 
+  // Read defensively. `answers` is jsonb with no shape constraint, and since
+  // hidden questions are now pruned rather than blanked, a key being absent is
+  // normal rather than a sign something is wrong.
+  const existingAnswers: SurveyAnswers | undefined =
+    myResponse?.answers && typeof myResponse.answers === 'object' && !Array.isArray(myResponse.answers)
+      ? (myResponse.answers as SurveyAnswers)
+      : undefined
+
   const canManage = ['committee', 'admin'].includes(member.role)
 
-  // Committee: load all responses for results
-  let allResponses: any[] = []
+  // Committee: load all responses for results. Normalised on the way in —
+  // an embedded row comes back as an array or an object depending on how the
+  // relationship is inferred, and the rest of the page should not care.
+  let allResponses: { answers: unknown; memberName: string | null }[] = []
   let responseCount = 0
   if (canManage) {
     const { data } = await supabase
       .from('survey_responses')
       .select('answers, member:member_id(name)')
       .eq('survey_id', surveyId)
-    allResponses = data ?? []
-    responseCount = allResponses.length
-  }
 
-  async function handleSubmit(formData: FormData) {
-    'use server'
-    const answers: Record<number, string> = {}
-    questions.forEach((_, qi) => {
-      answers[qi] = (formData.get(`q_${qi}`) as string) ?? ''
+    allResponses = (data ?? []).map((row) => {
+      const embedded = row.member as { name?: string } | { name?: string }[] | null
+      const one = Array.isArray(embedded) ? embedded[0] : embedded
+      return { answers: row.answers, memberName: one?.name ?? null }
     })
-    await submitSurveyResponse(surveyId, id, answers)
-    redirect(`/reunion/${id}/surveys/${surveyId}`)
+    responseCount = allResponses.length
   }
 
   return (
@@ -90,65 +108,30 @@ export default async function SurveyDetailPage({ params }: SurveyPageProps) {
         )}
       </div>
 
-      {/* Response form — show if member hasn't responded, or always for committee */}
-      {(!myResponse || canManage) && (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="text-base">
-              {myResponse ? 'Your Response (already submitted)' : 'Your Response'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {myResponse ? (
-              <div className="space-y-4">
-                {questions.map((q, qi) => (
-                  <div key={qi}>
-                    <p className="text-sm font-medium">{q.question}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {(myResponse.answers as any)[qi] ?? '—'}
-                    </p>
-                  </div>
-                ))}
-                <p className="text-xs text-muted-foreground">You've already responded to this survey.</p>
-              </div>
-            ) : (
-              <form action={handleSubmit} className="space-y-5">
-                {questions.map((q, qi) => (
-                  <div key={qi}>
-                    <label className="block text-sm font-medium mb-1.5">
-                      {qi + 1}. {q.question}
-                    </label>
-                    {q.type === 'multiple_choice' && q.options ? (
-                      <div className="space-y-1.5">
-                        {q.options.filter(Boolean).map((opt, oi) => (
-                          <label key={oi} className="flex items-center gap-2 text-sm cursor-pointer">
-                            <input
-                              type="radio"
-                              name={`q_${qi}`}
-                              value={opt}
-                              required
-                              className="accent-primary"
-                            />
-                            {opt}
-                          </label>
-                        ))}
-                      </div>
-                    ) : (
-                      <textarea
-                        name={`q_${qi}`}
-                        rows={2}
-                        required
-                        className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
-                      />
-                    )}
-                  </div>
-                ))}
-                <Button type="submit">Submit Response</Button>
-              </form>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      {/* Everyone gets the form, whatever their role and whether or not they have
+          answered before. It used to be hidden once a response existed unless you
+          were on the committee, which left a plain member looking at an empty
+          card with no way back in — and made it look like they lacked permission
+          to answer at all. */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle className="text-base">Your Response</CardTitle>
+          {existingAnswers && (
+            <p className="text-sm text-muted-foreground">
+              You have already answered this one. Change anything you like and save again — your
+              new answers replace the old ones.
+            </p>
+          )}
+        </CardHeader>
+        <CardContent>
+          <SurveyResponseForm
+            surveyId={surveyId}
+            reunionId={id}
+            questions={questions}
+            initialAnswers={existingAnswers}
+          />
+        </CardContent>
+      </Card>
 
       {/* Committee: results aggregation */}
       {canManage && allResponses.length > 0 && (
@@ -161,7 +144,18 @@ export default async function SurveyDetailPage({ params }: SurveyPageProps) {
           </CardHeader>
           <CardContent className="space-y-6">
             {questions.map((q, qi) => {
-              const answers = allResponses.map((r) => (r.answers as any)[qi] ?? '')
+              // A key being absent is normal: answers to questions somebody was
+              // never asked are pruned rather than stored blank.
+              //
+              // The name travels with the answer rather than being looked up by
+              // position later. Filtering the answers first and then indexing
+              // back into the response list put somebody else's name under a
+              // quote as soon as one person had skipped the question — and
+              // pruning makes skipped questions the common case.
+              const answered = allResponses
+                .map((r) => ({ text: readAnswer(r.answers, qi), who: r.memberName }))
+                .filter((a) => a.text !== '')
+              const answers = allResponses.map((r) => readAnswer(r.answers, qi))
               const isMC = q.type === 'multiple_choice' && q.options
 
               return (
@@ -190,17 +184,14 @@ export default async function SurveyDetailPage({ params }: SurveyPageProps) {
                     </div>
                   ) : (
                     <div className="space-y-1.5">
-                      {answers.filter(Boolean).map((a, i) => {
-                        const respondent = allResponses[i]?.member?.name
-                        return (
-                          <div key={i} className="rounded-md bg-muted/50 px-3 py-2 text-sm">
-                            <p>{a}</p>
-                            {respondent && (
-                              <p className="text-xs text-muted-foreground mt-0.5">— {respondent}</p>
-                            )}
-                          </div>
-                        )
-                      })}
+                      {answered.map((a, i) => (
+                        <div key={i} className="rounded-md bg-muted/50 px-3 py-2 text-sm">
+                          <p>{a.text}</p>
+                          {a.who && (
+                            <p className="text-xs text-muted-foreground mt-0.5">— {a.who}</p>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

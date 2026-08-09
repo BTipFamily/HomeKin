@@ -17,7 +17,7 @@ export function CopyButton({ text }: { text: string }) {
     <Button variant="ghost" size="sm" onClick={handleCopy}>
       {copied ? (
         <>
-          <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />
+          <Check className="mr-1.5 h-3.5 w-3.5 text-success" />
           Copied!
         </>
       ) : (

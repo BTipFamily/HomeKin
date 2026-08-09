@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, ClipboardList, Plus, CheckCircle } from 'lucide-react'
@@ -92,7 +92,7 @@ export default async function SurveysPage({ params }: SurveysPageProps) {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold">{survey.title}</p>
                         {hasResponded && (
-                          <Badge className="bg-green-500/10 text-green-700 border-green-200">
+                          <Badge className="bg-success/10 text-success-foreground border-success-border">
                             <CheckCircle className="mr-1 h-3 w-3" />
                             Responded
                           </Badge>

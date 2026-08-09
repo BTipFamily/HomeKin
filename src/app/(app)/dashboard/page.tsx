@@ -50,8 +50,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         <div
           className={`mb-6 rounded-lg border p-4 text-sm ${
             warning
-              ? 'border-amber-200 bg-amber-50 text-amber-900'
-              : 'border-green-200 bg-green-50 text-green-900'
+              ? 'border-warning-border bg-warning-surface text-warning-foreground'
+              : 'border-success-border bg-success-surface text-success-foreground'
           }`}
         >
           <p className="font-medium">&ldquo;{deleted}&rdquo; has been deleted.</p>

@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { createSurvey, type SurveyQuestion } from '@/lib/actions/surveys'
-import { Plus, Trash2, GripVertical } from 'lucide-react'
+import { availableTriggers, validateSurveyDefinition } from '@/lib/surveys'
+import { Plus, Trash2 } from 'lucide-react'
 
 interface SurveyBuilderProps {
   reunionId: string
@@ -18,6 +19,7 @@ export default function SurveyBuilder({ reunionId }: SurveyBuilderProps) {
   const [questions, setQuestions] = useState<SurveyQuestion[]>([
     { question: '', type: 'free_text' },
   ])
+  const [problems, setProblems] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
 
   function addQuestion() {
@@ -25,11 +27,32 @@ export default function SurveyBuilder({ reunionId }: SurveyBuilderProps) {
   }
 
   function removeQuestion(i: number) {
-    setQuestions((q) => q.filter((_, idx) => idx !== i))
+    setQuestions((list) => {
+      // Deleting a question renumbers everything after it, so conditions have to
+      // be re-pointed. Without this, removing question 1 silently moves a
+      // follow-up's trigger onto whatever slid into its place.
+      const next = list
+        .filter((_, idx) => idx !== i)
+        .map((q) => {
+          if (!q.showIf) return q
+          if (q.showIf.questionIndex === i) return { ...q, showIf: undefined }
+          if (q.showIf.questionIndex > i) {
+            return { ...q, showIf: { ...q.showIf, questionIndex: q.showIf.questionIndex - 1 } }
+          }
+          return q
+        })
+      return dropStaleConditions(next)
+    })
   }
 
   function updateQuestion(i: number, patch: Partial<SurveyQuestion>) {
-    setQuestions((q) => q.map((q2, idx) => (idx === i ? { ...q2, ...patch } : q2)))
+    setQuestions((list) =>
+      dropStaleConditions(list.map((q, idx) => (idx === i ? { ...q, ...patch } : q)))
+    )
+  }
+
+  function setCondition(i: number, showIf: SurveyQuestion['showIf']) {
+    setQuestions((list) => list.map((q, idx) => (idx === i ? { ...q, showIf } : q)))
   }
 
   function addOption(qi: number) {
@@ -41,40 +64,65 @@ export default function SurveyBuilder({ reunionId }: SurveyBuilderProps) {
   }
 
   function updateOption(qi: number, oi: number, value: string) {
-    setQuestions((q) =>
-      q.map((q2, idx) =>
-        idx === qi
-          ? { ...q2, options: q2.options?.map((o, oidx) => (oidx === oi ? value : o)) }
-          : q2
+    setQuestions((list) =>
+      dropStaleConditions(
+        list.map((q, idx) =>
+          idx === qi ? { ...q, options: q.options?.map((o, oidx) => (oidx === oi ? value : o)) } : q
+        )
       )
     )
   }
 
   function removeOption(qi: number, oi: number) {
-    setQuestions((q) =>
-      q.map((q2, idx) =>
-        idx === qi ? { ...q2, options: q2.options?.filter((_, oidx) => oidx !== oi) } : q2
+    setQuestions((list) =>
+      dropStaleConditions(
+        list.map((q, idx) =>
+          idx === qi ? { ...q, options: q.options?.filter((_, oidx) => oidx !== oi) } : q
+        )
       )
     )
   }
 
+  /**
+   * Removing or retyping a question can strand a condition that pointed at it,
+   * so conditions are cleared whenever the question they name stops qualifying
+   * — rather than left to fail validation later, when the cause is no longer
+   * on screen.
+   */
+  function dropStaleConditions(list: SurveyQuestion[]): SurveyQuestion[] {
+    return list.map((q, i) => {
+      if (!q.showIf) return q
+      const stillValid = availableTriggers(list, i).some(
+        (t) => t.index === q.showIf!.questionIndex && t.options.includes(q.showIf!.equals)
+      )
+      return stillValid ? q : { ...q, showIf: undefined }
+    })
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!title.trim()) return setError('Title is required')
-    const invalid = questions.some((q) => !q.question.trim())
-    if (invalid) return setError('All questions must have text')
-    const mcInvalid = questions.some(
-      (q) => q.type === 'multiple_choice' && (!q.options || q.options.filter(Boolean).length < 2)
-    )
-    if (mcInvalid) return setError('Multiple choice questions need at least 2 options')
 
+    // Same function the server runs, so the message here is the message there.
+    const found = validateSurveyDefinition(title, questions)
+    if (found.length > 0) {
+      setProblems(found)
+      setError(null)
+      return
+    }
+
+    setProblems([])
     setError(null)
     startTransition(async () => {
       try {
-        await createSurvey(reunionId, title.trim(), questions)
-        router.push(`/reunion/${reunionId}/surveys`)
-      } catch (e: any) {
-        setError(e.message)
+        const result = await createSurvey(reunionId, title.trim(), questions)
+        if (result.status === 'created') {
+          router.push(`/reunion/${reunionId}/surveys`)
+          return
+        }
+        setProblems(result.problems ?? [])
+        setError(result.problems?.length ? null : result.message)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'The survey could not be created.')
       }
     })
   }
@@ -148,6 +196,72 @@ export default function SurveyBuilder({ reunionId }: SurveyBuilderProps) {
                       </button>
                     </div>
                   )}
+
+                  <div className="space-y-2 border-t pt-2">
+                    <label className="flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={q.required ?? false}
+                        onChange={(e) => updateQuestion(qi, { required: e.target.checked })}
+                        className="accent-primary"
+                      />
+                      Must be answered
+                    </label>
+
+                    {/* Only offered once there is an earlier multiple-choice
+                        question to hang a condition on, so a short survey never
+                        shows a control with nothing to put in it. */}
+                    {availableTriggers(questions, qi).length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                        <span className="text-muted-foreground">Only ask this if</span>
+                        <select
+                          value={q.showIf ? String(q.showIf.questionIndex) : ''}
+                          onChange={(e) => {
+                            if (!e.target.value) return setCondition(qi, undefined)
+                            const triggerIndex = Number(e.target.value)
+                            const first =
+                              availableTriggers(questions, qi).find((t) => t.index === triggerIndex)
+                                ?.options[0] ?? ''
+                            setCondition(qi, { questionIndex: triggerIndex, equals: first })
+                          }}
+                          className="h-7 max-w-[12rem] rounded-md border border-input bg-background px-2 text-xs"
+                        >
+                          <option value="">always ask it</option>
+                          {availableTriggers(questions, qi).map((t) => (
+                            <option key={t.index} value={t.index}>
+                              Q{t.index + 1}: {t.question || `Question ${t.index + 1}`}
+                            </option>
+                          ))}
+                        </select>
+
+                        {q.showIf && (
+                          <>
+                            <span className="text-muted-foreground">is answered</span>
+                            <select
+                              value={q.showIf.equals}
+                              onChange={(e) =>
+                                setCondition(qi, {
+                                  questionIndex: q.showIf!.questionIndex,
+                                  equals: e.target.value,
+                                })
+                              }
+                              className="h-7 max-w-[12rem] rounded-md border border-input bg-background px-2 text-xs"
+                            >
+                              {(
+                                availableTriggers(questions, qi).find(
+                                  (t) => t.index === q.showIf!.questionIndex
+                                )?.options ?? []
+                              ).map((opt) => (
+                                <option key={opt} value={opt}>
+                                  {opt}
+                                </option>
+                              ))}
+                            </select>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {questions.length > 1 && (
@@ -169,6 +283,20 @@ export default function SurveyBuilder({ reunionId }: SurveyBuilderProps) {
           Add Question
         </Button>
       </div>
+
+      {problems.length > 0 && (
+        <div
+          className="rounded-lg border border-warning-border bg-warning-surface p-3 text-sm text-warning-foreground"
+          role="alert"
+        >
+          <p className="mb-1 font-medium">Before you create this:</p>
+          <ul className="list-disc space-y-0.5 pl-5">
+            {problems.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 

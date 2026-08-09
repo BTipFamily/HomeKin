@@ -1,52 +1,126 @@
 @import "tailwindcss";
 
 /* ============================================================
-   Design tokens — shadcn/ui compatible CSS variables
+   Design tokens — shadcn/ui structure, warm palette
+
+   Cream ground, rust accent, sage secondary. The token *names* are the
+   stock shadcn set on purpose: the app has no hardcoded gray/slate
+   utilities anywhere, so every neutral in all 92 components resolves
+   through these, and the palette is changed here rather than in the
+   components.
    ============================================================ */
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: 221.2 83.2% 53.3%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 221.2 83.2% 53.3%;
+  --background: 28 68% 95%;
+  --foreground: 24 47% 12%;
+  --card: 30 65% 99%;
+  --card-foreground: 24 47% 12%;
+  --popover: 30 65% 99%;
+  --popover-foreground: 24 47% 12%;
+  --primary: 22 59% 34%;
+  --primary-foreground: 30 65% 98%;
+  --secondary: 32 40% 90%;
+  --secondary-foreground: 24 47% 16%;
+  --muted: 32 38% 91%;
+  --muted-foreground: 26 15% 36%;
+  --accent: 32 40% 90%;
+  --accent-foreground: 24 47% 16%;
+  --destructive: 4 72% 45%;
+  --destructive-foreground: 30 65% 98%;
+  --border: 30 30% 87%;
+  --input: 30 30% 87%;
+  --ring: 22 59% 34%;
   --radius: 0.5rem;
+
+  /* The secondary brand accent — the eyebrow above the headline. */
+  --sage: 104 22% 34%;
+
+  /* Status colours.
+     Four roles each, because a status needs to work in two very different
+     places: as a bare accent on the page background (a figure, an icon), and
+     as a tinted panel with its own text on it.
+       --success            the accent itself
+       --success-foreground text sitting on --success-surface
+       --success-surface    the tinted panel
+       --success-border     that panel's edge
+     Danger is its own triad rather than a reuse of --destructive. That token
+     is the button fill and has to stay light enough to carry white text, which
+     makes it too light to sit as text on a tinted panel. --destructive is left
+     to buttons and to the ~49 `text-destructive` sites that lean on it via
+     opacity.
+
+     The surfaces are deeper and warmer than the usual -50 tints. Those were
+     picked against white; on a cream ground a 96-97% tint is nearly the page
+     itself, so the panel stops reading as a panel. */
+  --success: 142 62% 30%;
+  --success-foreground: 144 61% 18%;
+  --success-surface: 128 40% 92%;
+  --success-border: 132 34% 80%;
+
+  --warning: 28 88% 33%;
+  --warning-foreground: 22 78% 24%;
+  --warning-surface: 44 82% 89%;
+  --warning-border: 42 70% 76%;
+
+  --danger: 4 72% 45%;
+  --danger-foreground: 2 72% 38%;
+  --danger-surface: 6 72% 93%;
+  --danger-border: 6 62% 84%;
 }
 
-.dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222.2 84% 4.9%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 217.2 91.2% 59.8%;
-  --primary-foreground: 222.2 47.4% 11.2%;
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 224.3 76.3% 48%;
+/* The dark palette.
+   Applied by media query rather than a `.dark` class. It sat on a class for a
+   long time and nothing ever added that class, so none of this took effect.
+   The media query is also what Tailwind v4's own `dark:` variant compiles to
+   by default, so utilities and these variables now switch on one trigger
+   instead of two. A manual toggle would mean reintroducing the class
+   deliberately, along with something to set it. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Espresso rather than a desaturated cream — an inverted warm palette
+       goes grey, and the brand goes with it. Hue is held across both. */
+    --background: 24 24% 8%;
+    --foreground: 32 40% 94%;
+    --card: 24 20% 11%;
+    --card-foreground: 32 40% 94%;
+    --popover: 24 20% 11%;
+    --popover-foreground: 32 40% 94%;
+    --primary: 22 72% 58%;
+    --primary-foreground: 24 45% 10%;
+    --secondary: 24 14% 18%;
+    --secondary-foreground: 32 40% 94%;
+    --muted: 24 14% 18%;
+    --muted-foreground: 30 12% 66%;
+    --accent: 24 14% 18%;
+    --accent-foreground: 32 40% 94%;
+    --sage: 104 26% 62%;
+    /* Brightened, and its foreground darkened to match — the same inversion
+       --primary already makes above. The old value (0 62.8% 30.6%) was only
+       ever a button fill, and `text-destructive` is used in ~49 places where
+       a colour that dark against this background is unreadable. */
+    --destructive: 4 88% 68%;
+    --destructive-foreground: 4 60% 12%;
+    --border: 24 14% 21%;
+    --input: 24 14% 21%;
+    --ring: 22 72% 58%;
+
+    /* Genuinely dark surfaces with light text, not the light tints reused —
+       reusing them is what leaves a glowing white panel on a dark page. */
+    --success: 142 62% 56%;
+    --success-foreground: 140 70% 72%;
+    --success-surface: 145 45% 10%;
+    --success-border: 143 40% 22%;
+
+    --warning: 38 92% 58%;
+    --warning-foreground: 42 90% 76%;
+    --warning-surface: 30 55% 11%;
+    --warning-border: 28 50% 24%;
+
+    --danger: 4 88% 68%;
+    --danger-foreground: 6 90% 80%;
+    --danger-surface: 4 50% 13%;
+    --danger-border: 5 45% 26%;
+  }
 }
 
 @theme inline {
@@ -66,11 +140,25 @@
   --color-accent-foreground: hsl(var(--accent-foreground));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-danger: hsl(var(--danger));
+  --color-danger-foreground: hsl(var(--danger-foreground));
+  --color-danger-surface: hsl(var(--danger-surface));
+  --color-danger-border: hsl(var(--danger-border));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-success-surface: hsl(var(--success-surface));
+  --color-success-border: hsl(var(--success-border));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-warning-surface: hsl(var(--warning-surface));
+  --color-warning-border: hsl(var(--warning-border));
+  --color-sage: hsl(var(--sage));
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-playfair);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -85,4 +173,15 @@ body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Headings carry the brand; everything else stays Geist.
+   One rule rather than 43 edits — CardTitle renders an <h3> and DialogTitle
+   an <h2>, so card and dialog headings are covered here too. Body copy,
+   inputs and table cells deliberately keep the sans: a serif at 13px in a
+   dense admin table is harder to read, not warmer. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-serif), Georgia, serif;
 }

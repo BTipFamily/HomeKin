@@ -2,7 +2,17 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, Users, GitBranch, LogOut, Settings, ChevronDown, Menu, X } from 'lucide-react'
+import {
+  Home,
+  Users,
+  GitBranch,
+  LogOut,
+  Settings,
+  ChevronDown,
+  Menu,
+  X,
+  BookOpen,
+} from 'lucide-react'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn, getInitials } from '@/lib/utils'
@@ -144,6 +154,23 @@ export function AppNav({ member, reunions, currentReunionId }: AppNavProps) {
 
         {/* Right side */}
         <div className="flex items-center gap-2">
+          {/* Guides — on every screen, next to your photo, because the moment
+              you need instructions is the moment you are already lost. */}
+          <Button
+            variant="ghost"
+            size="icon"
+            asChild
+            className={cn(
+              'h-9 w-9',
+              pathname.startsWith('/guides') ? 'bg-primary/10 text-primary' : 'text-muted-foreground'
+            )}
+          >
+            <Link href="/guides" title="How-to guides">
+              <BookOpen className="h-5 w-5" />
+              <span className="sr-only">How-to guides</span>
+            </Link>
+          </Button>
+
           {/* User menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -238,6 +265,19 @@ export function AppNav({ member, reunions, currentReunionId }: AppNavProps) {
                 ))}
               </>
             )}
+            <Link
+              href="/guides"
+              onClick={() => setMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium',
+                pathname.startsWith('/guides')
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:bg-accent'
+              )}
+            >
+              <BookOpen className="h-4 w-4" />
+              Guides
+            </Link>
             <button
               onClick={handleSignOut}
               className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent"

@@ -100,7 +100,7 @@ export default async function InvitationsPage({ params }: InvitationsPageProps) 
                     </div>
                     <div className="flex items-center gap-1.5">
                       {inv.responded_at ? (
-                        <Badge className="bg-green-500/10 text-green-700 border-green-200 text-xs">
+                        <Badge className="bg-success/10 text-success-foreground border-success-border text-xs">
                           <CheckCircle className="mr-1 h-3 w-3" />
                           Responded
                         </Badge>

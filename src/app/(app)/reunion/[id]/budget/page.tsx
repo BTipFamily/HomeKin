@@ -128,12 +128,12 @@ export default async function PaymentsPage({ params }: BudgetPageProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Collected</p>
-                <p className="text-2xl font-bold text-green-600">{formatCurrency(totalPaid)}</p>
+                <p className="text-2xl font-bold text-success">{formatCurrency(totalPaid)}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Stripe {formatCurrency(stripePaid)} · Manual {formatCurrency(manualPaid)}
                 </p>
               </div>
-              <TrendingUp className="h-8 w-8 text-green-500 opacity-60" />
+              <TrendingUp className="h-8 w-8 text-success opacity-60" />
             </div>
           </CardContent>
         </Card>
@@ -143,12 +143,12 @@ export default async function PaymentsPage({ params }: BudgetPageProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Outstanding</p>
-                <p className="text-2xl font-bold text-amber-600">{formatCurrency(outstanding)}</p>
+                <p className="text-2xl font-bold text-warning">{formatCurrency(outstanding)}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   of {formatCurrency(totalOwed)} expected
                 </p>
               </div>
-              <AlertCircle className="h-8 w-8 text-amber-500 opacity-60" />
+              <AlertCircle className="h-8 w-8 text-warning opacity-60" />
             </div>
           </CardContent>
         </Card>
@@ -170,10 +170,10 @@ export default async function PaymentsPage({ params }: BudgetPageProps) {
       </div>
 
       {pending.length > 0 && (
-        <Card className="mb-8 border-amber-200">
+        <Card className="mb-8 border-warning-border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <Clock className="h-4 w-4 text-amber-500" />
+              <Clock className="h-4 w-4 text-warning" />
               Reported payments to confirm
             </CardTitle>
           </CardHeader>
@@ -230,7 +230,7 @@ export default async function PaymentsPage({ params }: BudgetPageProps) {
                       </div>
                       <div className="text-right">
                         <p className="text-sm">
-                          <span className="font-medium text-green-600">
+                          <span className="font-medium text-success">
                             {formatCurrency(Number(balance.amount_paid))}
                           </span>
                           <span className="text-muted-foreground">
@@ -240,7 +240,7 @@ export default async function PaymentsPage({ params }: BudgetPageProps) {
                         </p>
                         <div className="mt-0.5 flex items-center justify-end gap-2">
                           {due > 0 && (
-                            <span className="text-xs font-medium text-amber-600">
+                            <span className="text-xs font-medium text-warning">
                               {formatCurrency(due)} due
                             </span>
                           )}

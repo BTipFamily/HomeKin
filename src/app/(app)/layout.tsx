@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AppNav } from '@/components/layout/app-nav'
 import { PresenceHeartbeat } from '@/components/presence-heartbeat'
+import { Toaster } from '@/components/ui/toaster'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -35,6 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <PresenceHeartbeat />
       <AppNav member={member} reunions={reunions ?? []} />
       <main className="flex-1">{children}</main>
+      <Toaster />
     </div>
   )
 }

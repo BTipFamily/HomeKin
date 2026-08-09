@@ -154,7 +154,7 @@ export function BudgetEstimatorForm({ value, onChange }: BudgetEstimatorFormProp
             </div>
           </div>
 
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <div className="rounded-lg border border-warning-border bg-warning-surface p-4 text-sm text-warning-foreground">
             <p className="font-semibold">Quick Tip</p>
             <p className="mt-1">
               Use <strong>Low / Average / High</strong> to pre-fill suggested costs — then customize

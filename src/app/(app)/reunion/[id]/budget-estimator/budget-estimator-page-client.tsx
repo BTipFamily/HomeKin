@@ -65,7 +65,7 @@ export function BudgetEstimatorPageClient({
         <div className="print:hidden space-y-6">
           <BudgetEstimatorForm value={value} onChange={setValue} />
 
-          {message && <p className="text-sm text-green-600">{message}</p>}
+          {message && <p className="text-sm text-success">{message}</p>}
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <div className="flex gap-3">

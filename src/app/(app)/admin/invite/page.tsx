@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ArrowLeft } from 'lucide-react'
-import { CopyButton } from './copy-button'
+import { CopyButton } from '@/components/copy-button'
 import { GenerateInviteForm } from './generate-form'
 
 export default async function AdminInvitePage() {
@@ -87,7 +87,7 @@ export default async function AdminInvitePage() {
                     ) : isExpired ? (
                       <Badge variant="destructive">Expired</Badge>
                     ) : (
-                      <Badge className="bg-green-500/10 text-green-700 hover:bg-green-500/20">
+                      <Badge className="bg-success/10 text-success-foreground hover:bg-success/20">
                         Active
                       </Badge>
                     )}
@@ -97,7 +97,7 @@ export default async function AdminInvitePage() {
                       <div className="min-w-0">
                         <p className="truncate text-muted-foreground">{code.sent_to}</p>
                         {!code.sent_at && (
-                          <Badge variant="outline" className="mt-0.5 text-[10px] text-amber-700">
+                          <Badge variant="outline" className="mt-0.5 text-[10px] text-warning-foreground">
                             Not delivered
                           </Badge>
                         )}

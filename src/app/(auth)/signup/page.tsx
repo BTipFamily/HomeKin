@@ -260,7 +260,7 @@ function SignupForm() {
             </div>
 
             {resendState === 'sent' ? (
-              <p className="text-xs text-green-600">Sent again. It can take a minute to arrive.</p>
+              <p className="text-xs text-success">Sent again. It can take a minute to arrive.</p>
             ) : (
               <Button
                 type="button"
@@ -322,7 +322,7 @@ function SignupForm() {
               <p className="text-xs text-muted-foreground">Checking code...</p>
             )}
             {inviteStatus === 'valid' && (
-              <p className="flex items-center gap-1 text-xs text-green-600">
+              <p className="flex items-center gap-1 text-xs text-success">
                 <CheckCircle2 className="h-3 w-3" /> Valid invite code
               </p>
             )}

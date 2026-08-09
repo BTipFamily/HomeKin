@@ -177,7 +177,7 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
         <CardContent>
           {mySignup ? (
             <div className="space-y-4">
-              <div className="flex items-center gap-3 rounded-md bg-green-500/10 px-4 py-3">
+              <div className="flex items-center gap-3 rounded-md bg-success/10 px-4 py-3">
                 <Badge className="bg-green-600 text-white shrink-0">
                   {mySignup.status === 'confirmed' ? 'Confirmed' : 'Pending'}
                 </Badge>

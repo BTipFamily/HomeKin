@@ -435,17 +435,16 @@ export type PhotoCommentWithAuthor = PhotoCommentRow & {
   author?: Pick<Member, 'id' | 'name' | 'photo_url'>
 }
 
-export type SurveyQuestion = {
-  question: string
-  type: 'free_text' | 'multiple_choice'
-  options?: string[]
-}
+// Re-exported rather than restated. There used to be a second copy of these
+// here, and it had already drifted — `answers` was keyed by string in one file
+// and by number in the other, for the same column.
+export type { SurveyQuestion, SurveyAnswers } from '@/lib/surveys'
 
 export type Survey = {
   id: string
   reunion_id: string
   title: string
-  questions: SurveyQuestion[]
+  questions: import('@/lib/surveys').SurveyQuestion[]
   created_by: string | null
   created_at: string
 }
@@ -454,7 +453,7 @@ export type SurveyResponse = {
   id: string
   survey_id: string
   member_id: string
-  answers: Record<string, string>
+  answers: import('@/lib/surveys').SurveyAnswers
   submitted_at: string
 }
 
