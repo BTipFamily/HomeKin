@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { geocodeAddress } from '@/lib/geocoding'
+import { actionSuccess, failedWith, type ActionState } from '@/lib/action-state'
 
 export async function createReunion(formData: FormData) {
   const supabase = await createClient()
@@ -37,7 +38,7 @@ export async function createReunion(formData: FormData) {
   redirect(`/reunion/${data.id}`)
 }
 
-export async function updateReunion(reunionId: string, formData: FormData) {
+async function applyReunionUpdate(reunionId: string, formData: FormData) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -92,4 +93,23 @@ export async function updateReunion(reunionId: string, formData: FormData) {
   revalidatePath(`/reunion/${reunionId}/manage`)
   revalidatePath(`/reunion/${reunionId}/map`)
   revalidatePath('/dashboard')
+}
+
+/**
+ * Saving the reunion's own details.
+ *
+ * No redirect on success — it revalidates this page, and a redirect would
+ * discard the only place a failure could be shown.
+ */
+export async function updateReunion(
+  reunionId: string,
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  try {
+    await applyReunionUpdate(reunionId, formData)
+  } catch (e) {
+    return failedWith(e, 'The reunion could not be saved.')
+  }
+  return actionSuccess('Saved.')
 }

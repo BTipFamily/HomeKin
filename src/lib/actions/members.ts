@@ -7,6 +7,7 @@ import { geocodeAddress } from '@/lib/geocoding'
 import { parseBirthDate } from '@/lib/birthday'
 import { normalizeEmail } from '@/lib/member-linking'
 import type { Role } from '@/types/database'
+import { actionSuccess, failedWith, type ActionState } from '@/lib/action-state'
 
 /**
  * Reads a date-of-birth field off a form. `<input type="date">` submits ISO,
@@ -22,7 +23,7 @@ function readDateOfBirth(formData: FormData): string | null {
   return parsed.iso
 }
 
-export async function updateMemberProfile(formData: FormData) {
+async function applyProfileUpdate(formData: FormData) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -217,4 +218,24 @@ export async function updateProfilePhoto(memberId: string, photoUrl: string) {
   if (error) throw new Error(error.message)
   revalidatePath(`/directory/${memberId}`)
   revalidatePath('/directory')
+}
+
+/**
+ * Saving somebody's profile.
+ *
+ * The date-of-birth check raises a sentence worth reading — "Date of birth must
+ * be a real date" and similar from parseBirthDate — which thrown was reaching
+ * people as Next's redacted placeholder on a 206-field form, with nothing to
+ * say which field was wrong.
+ */
+export async function updateMemberProfile(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  try {
+    await applyProfileUpdate(formData)
+  } catch (e) {
+    return failedWith(e, 'Your profile could not be saved.')
+  }
+  return actionSuccess('Profile saved.')
 }

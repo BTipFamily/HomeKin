@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator'
 import { ArrowLeft, X } from 'lucide-react'
 import { updateMemberProfile } from '@/lib/actions/members'
+import { ActionForm } from '@/components/action-form'
+import { ActionButton } from '@/components/action-button'
 import { deleteRelationship } from '@/lib/actions/relationships'
 import { getInitials } from '@/lib/utils'
 import { MIN_BIRTH_YEAR } from '@/lib/birthday'
@@ -106,20 +108,11 @@ export default async function EditProfilePage({ params }: EditProfilePageProps) 
     return `${rel.custom_label ?? 'Related'} — ${otherName}`
   }
 
-  async function handleSubmit(formData: FormData) {
-    'use server'
-    formData.set('member_id', id)
-    await updateMemberProfile(formData)
-    redirect(`/directory/${id}`)
-  }
-
-  async function handleDeleteRelationship(formData: FormData) {
-    'use server'
-    const relationshipId = formData.get('relationship_id') as string
-    const memberId = formData.get('member_id') as string
-    const relatedMemberId = formData.get('related_member_id') as string
-    await deleteRelationship(relationshipId, [memberId, relatedMemberId])
-  }
+  // No wrapper closures any more: both actions take the useActionState
+  // signature and revalidate what they touch. The profile save no longer
+  // redirects on success either — on a form this long, being bounced to the
+  // profile page with no explanation was the only signal that anything had
+  // happened, and identical to what a silent failure looked like.
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
@@ -145,7 +138,13 @@ export default async function EditProfilePage({ params }: EditProfilePageProps) 
 
           <Separator className="my-6" />
 
-          <form action={handleSubmit} className="space-y-4">
+          <ActionForm
+            action={updateMemberProfile}
+            submitLabel="Save Changes"
+            pendingLabel="Saving…"
+            errorTitle="Your profile was not saved"
+            cancelHref={`/directory/${id}`}
+          >
             <input type="hidden" name="member_id" value={id} />
 
             <div className="space-y-2">
@@ -345,13 +344,7 @@ export default async function EditProfilePage({ params }: EditProfilePageProps) 
               />
             </div>
 
-            <div className="flex gap-3 pt-2">
-              <Button type="submit">Save Changes</Button>
-              <Button type="button" variant="outline" asChild>
-                <Link href={`/directory/${id}`}>Cancel</Link>
-              </Button>
-            </div>
-          </form>
+          </ActionForm>
         </CardContent>
       </Card>
 
@@ -388,14 +381,17 @@ export default async function EditProfilePage({ params }: EditProfilePageProps) 
                       </Avatar>
                       <span className="truncate text-sm">{describeRelationship(rel)}</span>
                     </div>
-                    <form action={handleDeleteRelationship}>
-                      <input type="hidden" name="relationship_id" value={rel.id} />
-                      <input type="hidden" name="member_id" value={rel.member_id} />
-                      <input type="hidden" name="related_member_id" value={rel.related_member_id} />
-                      <Button type="submit" variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </form>
+                    <ActionButton
+                      action={deleteRelationship.bind(null, rel.id, [
+                        rel.member_id,
+                        rel.related_member_id,
+                      ])}
+                      label={`Remove ${describeRelationship(rel)}`}
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </ActionButton>
                   </li>
                 )
               })}

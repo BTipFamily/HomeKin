@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { actionSuccess, failedWith, type ActionState } from '@/lib/action-state'
 import type { ParentChildKind, PartnerStatus } from '@/types/database'
 
 function revalidateForMembers(memberIds: string[]) {
@@ -115,18 +116,40 @@ export async function addCustomRelationship(formData: FormData) {
   revalidateForMembers([memberId, relatedMemberId])
 }
 
-export async function deleteRelationship(
-  relationshipId: string,
-  memberIds: [string, string]
-) {
+async function removeRelationship(relationshipId: string, memberIds: [string, string]) {
   const supabase = await createClient()
-  const { error } = await supabase
+
+  // Checked, where it was not before. Without this the delete simply matched no
+  // rows when the policy refused it: no error, nothing removed, and the page
+  // revalidated as though it had worked. A link somebody thought they had
+  // deleted stayed on their profile.
+  await getMyMemberId()
+
+  const { data, error } = await supabase
     .from('relationships')
     .delete()
     .eq('id', relationshipId)
+    .select('id')
 
   if (error) throw new Error(error.message)
+  if (!data || data.length === 0) {
+    throw new Error('That relationship could not be removed — it may already be gone.')
+  }
   revalidateForMembers(memberIds)
+}
+
+/** Removing a link between two people. Arguments are bound at the call site. */
+export async function deleteRelationship(
+  relationshipId: string,
+  memberIds: [string, string],
+  _prevState: ActionState
+): Promise<ActionState> {
+  try {
+    await removeRelationship(relationshipId, memberIds)
+  } catch (e) {
+    return failedWith(e, 'That relationship could not be removed.')
+  }
+  return actionSuccess('Removed.')
 }
 
 export async function searchMembersForRelationshipPicker(
