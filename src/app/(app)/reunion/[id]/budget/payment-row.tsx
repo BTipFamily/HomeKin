@@ -6,6 +6,7 @@ import { Check, Loader2, X } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { formatPaymentMethod } from '@/lib/stripe-payment-method'
 import { confirmPayment, deletePayment } from '@/lib/actions/balances'
+import type { ActionState } from '@/lib/action-state'
 import type { Payment } from '@/types/database'
 
 /** One reported payment awaiting a committee decision. */
@@ -23,11 +24,17 @@ export default function PaymentRow({
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
-  function run(action: () => Promise<void>) {
+  // Reads the returned state rather than catching. The catch is still here for
+  // a genuine transport failure, but it can no longer be the thing that reports
+  // "Stripe payments cannot be deleted" — React strips the message off a
+  // rejected Server Action promise in production just as it does off a thrown
+  // form action, so that sentence used to arrive as the redacted generic error.
+  function run(action: () => Promise<ActionState>) {
     setError(null)
     startTransition(async () => {
       try {
-        await action()
+        const result = await action()
+        if (result.status === 'error') setError(result.message)
       } catch (e) {
         setError(e instanceof Error ? e.message : 'That did not work.')
       }
