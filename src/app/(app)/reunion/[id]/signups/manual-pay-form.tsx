@@ -58,8 +58,16 @@ export default function ManualPayForm({
     try {
       // The amount is reported, not assumed: part payments are normal and the
       // old form recorded no figure at all.
-      await reportManualPayment(balanceId, method, Number(amount), reunionId)
-      setDone(true)
+      const result = await reportManualPayment(balanceId, method, Number(amount), reunionId)
+      if (result.status === 'error') {
+        // Comes back as a value now. Thrown, the overpayment message —
+        // "That is more than the $40.00 outstanding" — reached the member as
+        // Next's redacted placeholder, which told them nothing about what to
+        // type instead.
+        setError(result.message)
+      } else {
+        setDone(true)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not report that payment.')
     } finally {

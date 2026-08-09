@@ -1,23 +1,24 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { failedWith, type ActionState } from '@/lib/action-state'
 import {
   pruneHiddenAnswers,
   validateSurveyAnswers,
   validateSurveyDefinition,
+  type CreateSurveyResult,
   type SurveyAnswers,
   type SurveyQuestion,
+  type SurveyResponseResult,
 } from '@/lib/surveys'
 
-// The shape and its rules live in lib/surveys.ts so both this action and the
-// form can use them; re-exported here because every survey component already
-// imports the type from this module.
-export type { SurveyQuestion, SurveyAnswers }
-
-export type CreateSurveyResult =
-  | { status: 'created'; id: string }
-  | { status: 'blocked'; message: string; problems?: string[] }
+// This module exports async functions and nothing else. Types — including
+// re-exports of them — belong in lib/surveys.ts: Next compiles a 'use server'
+// file by listing its exports at runtime, and a `export type { … }` specifier
+// list survives that as a bare identifier, throwing ReferenceError on module
+// evaluation. See the note on SurveyResponseResult there.
 
 /** Building a survey. Committee and admins only — members answer, they don't author. */
 export async function createSurvey(
@@ -64,10 +65,6 @@ export async function createSurvey(
   revalidatePath(`/reunion/${reunionId}/surveys`)
   return { status: 'created', id: data.id }
 }
-
-export type SurveyResponseResult =
-  | { status: 'saved' }
-  | { status: 'blocked'; message: string; problems?: string[] }
 
 /**
  * Postgres refusing a write because of row-level security.
@@ -163,4 +160,77 @@ export async function submitSurveyResponse(
 
   revalidatePath(`/reunion/${reunionId}/surveys/${surveyId}`)
   return { status: 'saved' }
+}
+
+/**
+ * Removes a survey and, by cascade, every answer given to it.
+ *
+ * Committee and admin, matching who can create one. The role is checked here as
+ * well as in the policy: RLS filtering a delete removes no rows and reports no
+ * error, so without this check a member pressing the button would be told the
+ * survey no longer exists — which is both wrong and alarming.
+ */
+async function applyDeleteSurvey(surveyId: string, reunionId: string) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('You are not signed in.')
+
+  const { data: member } = await supabase
+    .from('members')
+    .select('role')
+    .eq('auth_user_id', user.id)
+    .single()
+  if (!member || !['committee', 'admin'].includes(member.role)) {
+    throw new Error('Committee or admin access is needed to remove a survey.')
+  }
+
+  // Scoped by reunion as well as by id, so a survey id lifted from another
+  // reunion cannot be deleted through this reunion's page.
+  const { data: deleted, error } = await supabase
+    .from('surveys')
+    .delete()
+    .eq('id', surveyId)
+    .eq('reunion_id', reunionId)
+    .select('id')
+
+  if (error) throw new Error(error.message)
+
+  // Nothing came back. The role check above has already passed, so this is
+  // either a survey somebody else has just removed or — far more likely the
+  // first time — the delete policy from migration 033 not being applied yet,
+  // which RLS reports as zero rows and no error rather than as a refusal.
+  if (!deleted || deleted.length === 0) {
+    throw new Error(
+      'Nothing was removed. Either that survey is already gone, or the policy that ' +
+        'allows removing one is in migration 033_survey_delete.sql and has not been ' +
+        'applied — ask an admin to check.'
+    )
+  }
+
+  revalidatePath(`/reunion/${reunionId}/surveys`)
+  revalidatePath(`/reunion/${reunionId}`)
+}
+
+/**
+ * Removing a survey. Arguments are bound at the call site.
+ *
+ * Used from the survey list and from a survey's own page, and it redirects to
+ * the list either way — from the detail page there is no longer a page to stand
+ * on, and from the list the redirect just re-renders it without the card.
+ */
+export async function deleteSurvey(
+  surveyId: string,
+  reunionId: string,
+  _prevState: ActionState
+): Promise<ActionState> {
+  try {
+    await applyDeleteSurvey(surveyId, reunionId)
+  } catch (e) {
+    return failedWith(e, 'That survey could not be removed.')
+  }
+  // Outside the try: redirect signals by throwing NEXT_REDIRECT, so catching it
+  // would report a successful deletion as a failure.
+  redirect(`/reunion/${reunionId}/surveys`)
 }

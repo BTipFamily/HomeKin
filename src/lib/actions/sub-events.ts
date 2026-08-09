@@ -17,6 +17,7 @@ import {
 } from '@/lib/event-pricing'
 import { repriceGroupEvent } from '@/lib/actions/group-pricing'
 import type { EventFormState } from '@/lib/event-form'
+import { failedWith, type ActionState } from '@/lib/action-state'
 
 const BOOKING_MODES: BookingMode[] = ['homekin', 'direct', 'group']
 
@@ -120,7 +121,7 @@ function deadlineRow(deadline: DeadlineInput, eventId: string, index: number) {
   }
 }
 
-export async function deleteSubEvent(eventId: string, reunionId: string) {
+async function applyDeleteSubEvent(eventId: string, reunionId: string) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -141,7 +142,6 @@ export async function deleteSubEvent(eventId: string, reunionId: string) {
   if (error) throw new Error(error.message)
 
   revalidatePath(`/reunion/${reunionId}/events`)
-  redirect(`/reunion/${reunionId}/events`)
 }
 
 export async function createSubEvent(
@@ -418,4 +418,24 @@ async function syncDeadlines(eventId: string, deadlines: DeadlineInput[]) {
 
     if (error) throw new Error(explainDeadlineError(error))
   }
+}
+
+/** Removing an event, its signups and its balances. Arguments bound at the call site. */
+export async function deleteSubEvent(
+  eventId: string,
+  reunionId: string,
+  _prevState: ActionState
+): Promise<ActionState> {
+  // ActionState rather than EventFormState: this one is driven by ActionButton,
+  // not EventFormShell, and EventFormState's two states are too narrow to sit in
+  // a parameter position expecting the four.
+  try {
+    await applyDeleteSubEvent(eventId, reunionId)
+  } catch (e) {
+    return failedWith(e, 'That event could not be deleted.')
+  }
+  // Outside the try, and it has to stay there: redirect signals by throwing a
+  // NEXT_REDIRECT, so catching it would turn a successful delete into an error
+  // message and leave the person on a page for an event that no longer exists.
+  redirect(`/reunion/${reunionId}/events`)
 }

@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Pin, Trash2, Calendar, Camera, Users, MessageCircle, ClipboardList, DollarSign, ListChecks, Wallet, Settings, FileText, HeartHandshake, CalendarDays, Compass } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { deleteAnnouncement } from '@/lib/actions/announcements'
+import { ActionButton } from '@/components/action-button'
 import { AnnouncementForm } from './announcement-form'
 import { getUnreadCounts, markChannelRead } from '@/lib/actions/chat'
 
@@ -75,11 +76,6 @@ export default async function ReunionPage({ params }: ReunionPageProps) {
   // Opening the reunion page counts as having seen its announcements. The chat
   // is marked read separately, when the chat itself is opened.
   if (unreadPosts > 0) await markChannelRead(id, null, 'announcements')
-
-  async function handleDeleteAnnouncement(announcementId: string) {
-    'use server'
-    await deleteAnnouncement(announcementId, id)
-  }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
@@ -232,21 +228,15 @@ export default async function ReunionPage({ params }: ReunionPageProps) {
                     </div>
                   </div>
                   {canManage && (
-                    <form
-                      action={async () => {
-                        'use server'
-                        await deleteAnnouncement(a.id, id)
-                      }}
+                    <ActionButton
+                      action={deleteAnnouncement.bind(null, a.id, id)}
+                      label={`Delete announcement: ${a.title}`}
+                      size="icon"
+                      className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                      confirm="Delete this announcement? It cannot unsend an email already gone out."
                     >
-                      <Button
-                        type="submit"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </form>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </ActionButton>
                   )}
                 </div>
               </CardContent>

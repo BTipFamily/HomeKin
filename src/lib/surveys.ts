@@ -35,6 +35,25 @@ export type SurveyQuestion = {
 /** Answers are keyed by question index, stringified. */
 export type SurveyAnswers = Record<string, string>
 
+/**
+ * What the two survey actions hand back.
+ *
+ * These live here rather than beside the actions on purpose. A 'use server'
+ * module is compiled by collecting its exports into a runtime list, and a
+ * `export type { … }` specifier list survives that collection as a bare
+ * identifier — which then throws `ReferenceError` the moment the module is
+ * evaluated, before any page renders. Keeping every type out of the action
+ * module makes the rule easy to hold: it exports async functions and nothing
+ * else.
+ */
+export type SurveyResponseResult =
+  | { status: 'saved' }
+  | { status: 'blocked'; message: string; problems?: string[] }
+
+export type CreateSurveyResult =
+  | { status: 'created'; id: string }
+  | { status: 'blocked'; message: string; problems?: string[] }
+
 function answerFor(answers: SurveyAnswers, index: number): string {
   return (answers[String(index)] ?? '').trim()
 }
@@ -182,4 +201,25 @@ export function validateSurveyDefinition(
   })
 
   return problems
+}
+
+/**
+ * What a person is agreeing to when they remove a survey.
+ *
+ * survey_responses cascades off surveys, so deleting one destroys every answer
+ * given to it. The count is the whole point of this sentence: "Delete this
+ * survey?" is a question about a title, and the honest question is about the
+ * fourteen people who already answered it.
+ *
+ * Pure, and separate from the page, so the wording is checkable — a warning
+ * that miscounts is worse than no warning, because it is still believed.
+ */
+export function describeSurveyLoss(title: string, responseCount: number): string {
+  const lead = `Remove "${title}"?`
+
+  if (responseCount === 0) return `${lead} Nobody has answered it yet.`
+  if (responseCount === 1) {
+    return `${lead} The one answer already given is deleted with it, and cannot be recovered.`
+  }
+  return `${lead} All ${responseCount} answers already given are deleted with it, and cannot be recovered.`
 }

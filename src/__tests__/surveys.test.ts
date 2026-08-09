@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   availableTriggers,
+  describeSurveyLoss,
   isQuestionVisible,
   pruneHiddenAnswers,
   validateSurveyAnswers,
@@ -254,5 +255,33 @@ describe('validateSurveyDefinition', () => {
       { question: 'Second', type: 'multiple_choice', options: ['x', 'y'] },
     ]
     expect(validateSurveyDefinition('T', forwards)[0]).toContain('comes after it')
+  })
+})
+
+describe('what removing a survey costs', () => {
+  it('says nobody has answered when nobody has', () => {
+    expect(describeSurveyLoss('Banquet Location', 0)).toBe(
+      'Remove "Banquet Location"? Nobody has answered it yet.'
+    )
+  })
+
+  it('does not say "1 answers"', () => {
+    const text = describeSurveyLoss('Banquet Location', 1)
+    expect(text).toContain('The one answer already given')
+    expect(text).not.toContain('1 answers')
+  })
+
+  it('names the real number, because a warning that miscounts is still believed', () => {
+    expect(describeSurveyLoss('Banquet Location', 14)).toContain('All 14 answers already given')
+  })
+
+  it('carries the title, so a page of similar surveys is not a guess', () => {
+    expect(describeSurveyLoss('Travel Plans', 3)).toContain('"Travel Plans"')
+  })
+
+  it('always says the loss is permanent when there is something to lose', () => {
+    for (const n of [1, 2, 40]) {
+      expect(describeSurveyLoss('T', n)).toContain('cannot be recovered')
+    }
   })
 })

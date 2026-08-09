@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { sendReceipt } from '@/lib/statements'
 import type { PaymentMethod } from '@/types/database'
+import { actionSuccess, failedWith, type ActionState } from '@/lib/action-state'
 
 const MANUAL_METHODS: PaymentMethod[] = ['zelle', 'cashapp', 'check', 'other']
 
@@ -66,7 +67,7 @@ async function emailReceipt(paymentId: string) {
  * to 'pending_confirmation' with no figure attached, so a part payment can be
  * reported honestly.
  */
-export async function reportManualPayment(
+async function applyManualPayment(
   balanceId: string,
   method: PaymentMethod,
   amount: number,
@@ -114,7 +115,7 @@ export async function reportManualPayment(
 }
 
 /** Committee agreeing that a reported payment really arrived. */
-export async function confirmPayment(paymentId: string, reunionId: string) {
+async function applyConfirmPayment(paymentId: string, reunionId: string) {
   const member = await currentMember()
   if (!['committee', 'admin'].includes(member.role)) {
     throw new Error('Committee access required')
@@ -200,7 +201,7 @@ export async function recordPayment(input: {
  * record would put the app out of step with Stripe. Refund those in Stripe and
  * record the refund here as a negative amount instead.
  */
-export async function deletePayment(paymentId: string, reunionId: string) {
+async function applyDeletePayment(paymentId: string, reunionId: string) {
   const member = await currentMember()
   if (!['committee', 'admin'].includes(member.role)) {
     throw new Error('Committee access required')
@@ -223,4 +224,57 @@ export async function deletePayment(paymentId: string, reunionId: string) {
   const { error } = await service.from('payments').delete().eq('id', paymentId)
   if (error) throw new Error(error.message)
   revalidateFor(reunionId, payment.member_id as string)
+}
+
+// ---------------------------------------------------------------------------
+// The exported actions.
+//
+// These are called imperatively from client components rather than posted to
+// from a form, which is why they keep their argument lists. What changes is the
+// return: a rejected Server Action promise is redacted in production exactly
+// like a thrown form action, so manual-pay-form.tsx and payment-row.tsx were
+// catching an error whose message React had already removed. The messages here
+// are about somebody's money, and are the ones most worth reading.
+// ---------------------------------------------------------------------------
+
+/** A member saying they have paid by Zelle, cheque or similar. */
+export async function reportManualPayment(
+  balanceId: string,
+  method: PaymentMethod,
+  amount: number,
+  reunionId: string,
+  note?: string
+): Promise<ActionState> {
+  try {
+    await applyManualPayment(balanceId, method, amount, reunionId, note)
+  } catch (e) {
+    return failedWith(e, 'That payment could not be recorded.')
+  }
+  return actionSuccess('Reported — the committee will confirm it.')
+}
+
+/** The committee vouching that money arrived. Emails the member a receipt. */
+export async function confirmPayment(
+  paymentId: string,
+  reunionId: string
+): Promise<ActionState> {
+  try {
+    await applyConfirmPayment(paymentId, reunionId)
+  } catch (e) {
+    return failedWith(e, 'That payment could not be confirmed.')
+  }
+  return actionSuccess('Confirmed, and a receipt has been emailed.')
+}
+
+/** Removing a reported payment that never turned up. */
+export async function deletePayment(
+  paymentId: string,
+  reunionId: string
+): Promise<ActionState> {
+  try {
+    await applyDeletePayment(paymentId, reunionId)
+  } catch (e) {
+    return failedWith(e, 'That payment could not be removed.')
+  }
+  return actionSuccess('Removed, and the amount is back on their balance.')
 }

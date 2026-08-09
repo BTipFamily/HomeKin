@@ -7,6 +7,7 @@ import { geocodeAddress } from '@/lib/geocoding'
 import { parseBirthDate } from '@/lib/birthday'
 import { normalizeEmail } from '@/lib/member-linking'
 import type { Role } from '@/types/database'
+import { actionSuccess, failedWith, type ActionState } from '@/lib/action-state'
 
 /**
  * Reads a date-of-birth field off a form. `<input type="date">` submits ISO,
@@ -22,7 +23,7 @@ function readDateOfBirth(formData: FormData): string | null {
   return parsed.iso
 }
 
-export async function updateMemberProfile(formData: FormData) {
+async function applyProfileUpdate(formData: FormData) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -139,7 +140,7 @@ async function saveSupportNeeds(
   if (error) throw new Error(error.message)
 }
 
-export async function createProxyMember(formData: FormData) {
+async function applyProxyMember(formData: FormData) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -181,7 +182,7 @@ export async function createProxyMember(formData: FormData) {
   revalidatePath('/admin/members')
 }
 
-export async function updateMemberRole(memberId: string, role: Role) {
+async function applyMemberRole(memberId: string, role: Role) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -217,4 +218,54 @@ export async function updateProfilePhoto(memberId: string, photoUrl: string) {
   if (error) throw new Error(error.message)
   revalidatePath(`/directory/${memberId}`)
   revalidatePath('/directory')
+}
+
+/**
+ * Saving somebody's profile.
+ *
+ * The date-of-birth check raises a sentence worth reading — "Date of birth must
+ * be a real date" and similar from parseBirthDate — which thrown was reaching
+ * people as Next's redacted placeholder on a 206-field form, with nothing to
+ * say which field was wrong.
+ */
+export async function updateMemberProfile(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  try {
+    await applyProfileUpdate(formData)
+  } catch (e) {
+    return failedWith(e, 'Your profile could not be saved.')
+  }
+  return actionSuccess('Profile saved.')
+}
+
+/** Creating a placeholder profile for somebody who has not signed up. */
+export async function createProxyMember(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  try {
+    await applyProxyMember(formData)
+  } catch (e) {
+    // A duplicate email arrives here as a raw Postgres unique-violation, which
+    // is unhelpful but still far better than the redacted placeholder — and it
+    // is the single most likely thing to go wrong on this form.
+    return failedWith(e, 'That profile could not be created.')
+  }
+  return actionSuccess('Profile created.')
+}
+
+/** Promoting or demoting somebody. Arguments are bound at the call site. */
+export async function updateMemberRole(
+  memberId: string,
+  role: Role,
+  _prevState: ActionState
+): Promise<ActionState> {
+  try {
+    await applyMemberRole(memberId, role)
+  } catch (e) {
+    return failedWith(e, 'That role could not be changed.')
+  }
+  return actionSuccess(`Now ${role}.`)
 }

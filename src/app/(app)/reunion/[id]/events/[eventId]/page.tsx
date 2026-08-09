@@ -10,6 +10,8 @@ import { ArrowLeft, Calendar, Clock, MapPin, Users, DollarSign, Edit, Trash2 } f
 import { formatDate, formatTime, formatCurrency, formatDuration, getInitials } from '@/lib/utils'
 import { upsertSignup, cancelSignup } from '@/lib/actions/signups'
 import { deleteSubEvent } from '@/lib/actions/sub-events'
+import { ActionForm } from '@/components/action-form'
+import { ActionButton } from '@/components/action-button'
 
 interface EventDetailPageProps {
   params: Promise<{ id: string; eventId: string }>
@@ -56,19 +58,10 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
   const isFull = event.capacity !== null && totalSignedUp >= event.capacity
   const canManage = ['committee', 'admin'].includes(member.role)
 
-  async function handleSignup(formData: FormData) {
-    'use server'
-    formData.set('sub_event_id', eventId)
-    await upsertSignup(formData)
-    redirect(`/reunion/${id}/events/${eventId}`)
-  }
-
-  async function handleCancel() {
-    'use server'
-    if (!mySignup) return
-    await cancelSignup(mySignup.id, id, eventId)
-    redirect(`/reunion/${id}/events/${eventId}`)
-  }
+  // The signup and cancel closures are gone: both actions now take the
+  // useActionState signature and revalidate this page themselves, so there is
+  // nothing left for a wrapper to do. They also no longer redirect on success —
+  // redirecting throws away the one place a failure could have been shown.
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
@@ -91,22 +84,17 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
                     Edit
                   </Link>
                 </Button>
-                <form
-                  action={async () => {
-                    'use server'
-                    await deleteSubEvent(eventId, id)
-                  }}
+                <ActionButton
+                  action={deleteSubEvent.bind(null, eventId, id)}
+                  label="Delete this event"
+                  variant="destructive"
+                  size="sm"
+                  className="gap-1.5"
+                  confirm="Delete this event? Its signups and balances go too."
                 >
-                  <Button
-                    type="submit"
-                    variant="destructive"
-                    size="sm"
-                    className="gap-1.5"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete
-                  </Button>
-                </form>
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete
+                </ActionButton>
               </div>
             )}
           </div>
@@ -197,7 +185,13 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
               </div>
 
               {/* Edit form */}
-              <form action={handleSignup} className="space-y-3">
+              <ActionForm
+                action={upsertSignup}
+                submitLabel="Update Signup"
+                pendingLabel="Saving…"
+                errorTitle="Your signup was not changed"
+                className="space-y-3"
+              >
                 <input type="hidden" name="sub_event_id" value={eventId} />
                 <div className="space-y-1">
                   <label className="text-sm font-medium">Update headcount</label>
@@ -219,21 +213,30 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
                     className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   />
                 </div>
-                <Button type="submit" size="sm">Update Signup</Button>
-              </form>
-              <form action={handleCancel}>
-                <Button type="submit" size="sm" variant="destructive">
-                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                  Cancel Signup
-                </Button>
-              </form>
+              </ActionForm>
+              <ActionButton
+                action={cancelSignup.bind(null, mySignup.id, id, eventId)}
+                label="Cancel signup"
+                variant="destructive"
+                size="sm"
+                confirm="Cancel your signup for this event?"
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                Cancel Signup
+              </ActionButton>
             </div>
           ) : isFull ? (
             <p className="text-sm text-muted-foreground">
               This event is at capacity. Contact the committee to be added to a waitlist.
             </p>
           ) : (
-            <form action={handleSignup} className="space-y-3">
+            <ActionForm
+              action={upsertSignup}
+              submitLabel="Sign Up"
+              pendingLabel="Signing up…"
+              errorTitle="You were not signed up"
+              className="space-y-3"
+            >
               <input type="hidden" name="sub_event_id" value={eventId} />
               <div className="space-y-1">
                 <label className="text-sm font-medium">Number of people (including yourself)</label>
@@ -263,8 +266,7 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
                   Payment is handled separately.
                 </p>
               )}
-              <Button type="submit">Sign Up</Button>
-            </form>
+            </ActionForm>
           )}
         </CardContent>
       </Card>

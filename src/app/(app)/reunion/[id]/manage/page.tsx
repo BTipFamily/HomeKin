@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, Calendar, Users, DollarSign } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { updateReunion } from '@/lib/actions/reunions'
+import { ActionForm } from '@/components/action-form'
 import { DeleteReunion } from './delete-reunion'
 
 interface ManagePageProps {
@@ -61,11 +62,10 @@ export default async function ManagePage({ params }: ManagePageProps) {
     return sum + (event?.cost_per_person ?? 0) * s.headcount
   }, 0) ?? 0
 
-  async function handleUpdateReunion(formData: FormData) {
-    'use server'
-    await updateReunion(id, formData)
-    redirect(`/reunion/${id}/manage`)
-  }
+  // updateReunion takes the useActionState signature now and revalidates this
+  // page itself, so the wrapper and its redirect are gone. The redirect was
+  // hiding failures: it fired only on success, and a failure looked like
+  // nothing happening.
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
@@ -121,7 +121,12 @@ export default async function ManagePage({ params }: ManagePageProps) {
           <CardTitle className="text-base">Reunion Details</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={handleUpdateReunion} className="space-y-4">
+          <ActionForm
+            action={updateReunion.bind(null, id)}
+            submitLabel="Save Changes"
+            pendingLabel="Saving…"
+            errorTitle="The reunion was not saved"
+          >
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
               <Input id="name" name="name" required defaultValue={reunion.name} />
@@ -192,8 +197,7 @@ export default async function ManagePage({ params }: ManagePageProps) {
                 rows={2}
               />
             </div>
-            <Button type="submit" size="sm">Save Changes</Button>
-          </form>
+          </ActionForm>
         </CardContent>
       </Card>
 

@@ -5,6 +5,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { sendStatement } from '@/lib/statements'
 import { type BookingMode } from '@/lib/event-pricing'
 import { repriceGroupEvent } from '@/lib/actions/group-pricing'
+import { actionSuccess, failedWith, type ActionState } from '@/lib/action-state'
 
 /**
  * Emails the member their statement without letting a mail failure undo the
@@ -76,7 +77,13 @@ async function ensureBalance(
   }
 }
 
-export async function upsertSignup(formData: FormData) {
+/**
+ * The work. Left throwing on purpose — the guards below raise messages already
+ * written for a person to read ("Not enough capacity. Only 3 spots remaining."),
+ * and the wrapper turns them into something the form can display. Rewriting each
+ * guard into a return would risk losing one of those sentences.
+ */
+async function applySignup(formData: FormData) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -178,7 +185,7 @@ export async function upsertSignup(formData: FormData) {
   await emailStatement(member.id, reunionId)
 }
 
-export async function cancelSignup(signupId: string, reunionId: string, subEventId: string) {
+async function removeSignup(signupId: string, reunionId: string, subEventId: string) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -241,6 +248,43 @@ export async function cancelSignup(signupId: string, reunionId: string, subEvent
   await emailStatement(member.id, reunionId)
 }
 
+/**
+ * Signing up, or changing how many you are bringing.
+ *
+ * No redirect: the page revalidates above, so staying put and saying it worked
+ * is both simpler and better — a redirect on success throws away the only place
+ * a failure could have been shown.
+ */
+export async function upsertSignup(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  try {
+    await applySignup(formData)
+  } catch (e) {
+    return failedWith(e, 'Your signup could not be saved.')
+  }
+  return actionSuccess('Signup saved. A statement is on its way to your email.')
+}
+
+/** Pulling out. Arguments are bound at the call site; the form sends nothing. */
+export async function cancelSignup(
+  signupId: string,
+  reunionId: string,
+  subEventId: string,
+  _prevState: ActionState,
+  _formData: FormData
+): Promise<ActionState> {
+  try {
+    await removeSignup(signupId, reunionId, subEventId)
+  } catch (e) {
+    return failedWith(e, 'Your signup could not be cancelled.')
+  }
+  return actionSuccess('Signup cancelled.')
+}
+
+// Not called from anywhere in the app today. Left as it was rather than
+// converted — an unused action is a separate question from a broken one.
 export async function confirmSignup(signupId: string, reunionId: string) {
   const supabase = await createClient()
   const {

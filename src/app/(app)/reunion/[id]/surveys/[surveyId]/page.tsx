@@ -3,8 +3,10 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, BarChart3 } from 'lucide-react'
-import type { SurveyAnswers, SurveyQuestion } from '@/lib/actions/surveys'
+import { ArrowLeft, BarChart3, Trash2 } from 'lucide-react'
+import { describeSurveyLoss, type SurveyAnswers, type SurveyQuestion } from '@/lib/surveys'
+import { deleteSurvey } from '@/lib/actions/surveys'
+import { ActionButton } from '@/components/action-button'
 import { SurveyResponseForm } from './survey-response-form'
 
 interface SurveyPageProps {
@@ -101,10 +103,28 @@ export default async function SurveyDetailPage({ params }: SurveyPageProps) {
         </Link>
       </Button>
 
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">{survey.title}</h1>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">{survey.title}</h1>
+          {canManage && (
+            <p className="mt-1 text-sm text-muted-foreground">{responseCount} response{responseCount !== 1 ? 's' : ''}</p>
+          )}
+        </div>
         {canManage && (
-          <p className="mt-1 text-sm text-muted-foreground">{responseCount} response{responseCount !== 1 ? 's' : ''}</p>
+          <div className="flex flex-col items-end gap-1">
+            <ActionButton
+              action={deleteSurvey.bind(null, surveyId, id)}
+              label={`Remove survey: ${survey.title}`}
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-muted-foreground hover:text-destructive"
+              confirm={describeSurveyLoss(survey.title, responseCount)}
+              messageClassName="w-52 text-right"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Remove
+            </ActionButton>
+          </div>
         )}
       </div>
 
