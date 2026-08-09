@@ -6,18 +6,17 @@ import {
   pruneHiddenAnswers,
   validateSurveyAnswers,
   validateSurveyDefinition,
+  type CreateSurveyResult,
   type SurveyAnswers,
   type SurveyQuestion,
+  type SurveyResponseResult,
 } from '@/lib/surveys'
 
-// The shape and its rules live in lib/surveys.ts so both this action and the
-// form can use them; re-exported here because every survey component already
-// imports the type from this module.
-export type { SurveyQuestion, SurveyAnswers }
-
-export type CreateSurveyResult =
-  | { status: 'created'; id: string }
-  | { status: 'blocked'; message: string; problems?: string[] }
+// This module exports async functions and nothing else. Types — including
+// re-exports of them — belong in lib/surveys.ts: Next compiles a 'use server'
+// file by listing its exports at runtime, and a `export type { … }` specifier
+// list survives that as a bare identifier, throwing ReferenceError on module
+// evaluation. See the note on SurveyResponseResult there.
 
 /** Building a survey. Committee and admins only — members answer, they don't author. */
 export async function createSurvey(
@@ -64,10 +63,6 @@ export async function createSurvey(
   revalidatePath(`/reunion/${reunionId}/surveys`)
   return { status: 'created', id: data.id }
 }
-
-export type SurveyResponseResult =
-  | { status: 'saved' }
-  | { status: 'blocked'; message: string; problems?: string[] }
 
 /**
  * Postgres refusing a write because of row-level security.

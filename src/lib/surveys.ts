@@ -35,6 +35,25 @@ export type SurveyQuestion = {
 /** Answers are keyed by question index, stringified. */
 export type SurveyAnswers = Record<string, string>
 
+/**
+ * What the two survey actions hand back.
+ *
+ * These live here rather than beside the actions on purpose. A 'use server'
+ * module is compiled by collecting its exports into a runtime list, and a
+ * `export type { … }` specifier list survives that collection as a bare
+ * identifier — which then throws `ReferenceError` the moment the module is
+ * evaluated, before any page renders. Keeping every type out of the action
+ * module makes the rule easy to hold: it exports async functions and nothing
+ * else.
+ */
+export type SurveyResponseResult =
+  | { status: 'saved' }
+  | { status: 'blocked'; message: string; problems?: string[] }
+
+export type CreateSurveyResult =
+  | { status: 'created'; id: string }
+  | { status: 'blocked'; message: string; problems?: string[] }
+
 function answerFor(answers: SurveyAnswers, index: number): string {
   return (answers[String(index)] ?? '').trim()
 }

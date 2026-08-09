@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, BarChart3 } from 'lucide-react'
-import type { SurveyAnswers, SurveyQuestion } from '@/lib/actions/surveys'
+import type { SurveyAnswers, SurveyQuestion } from '@/lib/surveys'
 import { SurveyResponseForm } from './survey-response-form'
 
 interface SurveyPageProps {

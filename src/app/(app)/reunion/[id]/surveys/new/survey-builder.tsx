@@ -4,8 +4,12 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { createSurvey, type SurveyQuestion } from '@/lib/actions/surveys'
-import { availableTriggers, validateSurveyDefinition } from '@/lib/surveys'
+import { createSurvey } from '@/lib/actions/surveys'
+import {
+  availableTriggers,
+  validateSurveyDefinition,
+  type SurveyQuestion,
+} from '@/lib/surveys'
 import { Plus, Trash2 } from 'lucide-react'
 
 interface SurveyBuilderProps {
