@@ -115,8 +115,9 @@ const NOTE_LABELS = {
 } as const
 
 /**
- * A short aside. `warning` is reserved for the two things that alarm people —
- * money leaving their hands, and email going out to the whole family.
+ * A short aside. `warning` is for the things that cannot be taken back once
+ * done — money leaving somebody's hands, email going out to the whole family,
+ * and anything that destroys what other people wrote or owed.
  */
 export function GuideNote({
   variant = 'heads_up',

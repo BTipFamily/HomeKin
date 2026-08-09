@@ -105,6 +105,22 @@ export default function Guide() {
         Ordinary members see their own answers only.
       </P>
 
+      <H2>Removing one</H2>
+      <P>
+        Committee members and admins can remove a survey — the bin icon beside it on the surveys
+        list, or <UI>Remove</UI> at the top of the survey&apos;s own page. Both ask first, and the
+        question tells you how many people have already answered, because those answers go with
+        it. There is no undo and no archive: a removed survey and its responses are gone.
+      </P>
+      <GuideNote variant="warning" title="A survey people have answered is a record">
+        <p>
+          Removing one that has responses destroys what those people said, not just the questions.
+          If the survey has served its purpose but the answers still matter, read the results
+          first and write down what you need — or simply leave it in place. An old survey sitting
+          on the list costs nothing.
+        </p>
+      </GuideNote>
+
       <H2>Nobody is emailed</H2>
       <P>
         Creating a survey does not notify anyone. If you want responses, post an announcement

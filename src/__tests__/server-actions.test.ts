@@ -43,6 +43,7 @@ const MUST_RETURN_STATE: Record<string, string[]> = {
   'announcements.ts': ['deleteAnnouncement'],
   'photos.ts': ['deletePhoto'],
   'sub-events.ts': ['deleteSubEvent', 'createSubEvent', 'updateSubEvent'],
+  'surveys.ts': ['deleteSurvey'],
 }
 
 describe('actions a form posts to', () => {
