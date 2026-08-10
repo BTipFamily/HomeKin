@@ -159,6 +159,23 @@ export default async function EditProfilePage({ params }: EditProfilePageProps) 
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="email">Email *</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                defaultValue={member.email}
+                required
+                placeholder="jane@example.com"
+              />
+              <p className="text-xs text-muted-foreground">
+                {member.auth_user_id
+                  ? 'Where statements, reminders and announcements are sent. Changing it does not change what you sign in with.'
+                  : 'Where invitations and reminders are sent, and what a future signup is matched against.'}
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="family_branch">Family Branch</Label>
               <Input
                 id="family_branch"

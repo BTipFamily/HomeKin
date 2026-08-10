@@ -44,14 +44,18 @@ export default function Guide() {
 
         <Step n={2} title="Fill in the details">
           <p>
-            Only <UI>Full Name</UI> is required. The rest — family branch, date of birth, phone,
-            address, bio — are all optional and can be added whenever.
+            <UI>Full Name</UI> and <UI>Email</UI> are required. The rest — family branch, date of
+            birth, phone, address, bio — are all optional and can be added whenever.
           </p>
           <Screen label="Edit profile — details">
             <div className="grid max-w-lg gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label>Full Name *</Label>
                 <Input defaultValue="Jane Smith" readOnly />
+              </div>
+              <div className="space-y-1">
+                <Label>Email *</Label>
+                <Input defaultValue="jane@example.com" readOnly />
               </div>
               <div className="space-y-1">
                 <Label>Family Branch</Label>
@@ -103,6 +107,16 @@ export default function Guide() {
           If you enter an address it is looked up and turned into a point on the travel map, so
           the committee can see roughly where the family is spread. Whether anybody else can read
           the address itself is a separate matter, governed by your visibility settings.
+        </p>
+      </GuideNote>
+
+      <GuideNote title="Email here is where mail goes, not how you sign in">
+        <p>
+          Statements, payment reminders and announcements all go to the email address on this
+          form. If you already have a login, changing it here does not change what you sign in
+          with — those are two different things inside HomeKin. If you have not claimed your
+          profile yet, this is also the address a future signup gets matched against, so it has
+          to be right before an invite is sent.
         </p>
       </GuideNote>
 

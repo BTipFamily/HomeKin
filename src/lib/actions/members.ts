@@ -9,6 +9,11 @@ import { normalizeEmail } from '@/lib/member-linking'
 import type { Role } from '@/types/database'
 import { actionSuccess, failedWith, type ActionState } from '@/lib/action-state'
 
+// Deliberately permissive — matches the rule the invite, import and signup
+// paths use. The DB has no format constraint of its own, so this is only
+// rejecting shapes that clearly are not an address.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 /**
  * Reads a date-of-birth field off a form. `<input type="date">` submits ISO,
  * but the field is also reachable by anyone who can POST the action, so the
@@ -32,6 +37,12 @@ async function applyProfileUpdate(formData: FormData) {
 
   const memberId = formData.get('member_id') as string
   const name = formData.get('name') as string
+  // Lowercased for the same reason a proxy profile's address is: `members.email`
+  // is unique and it is what every notification — statements, reminders,
+  // announcements — actually gets sent to, whether or not this person has ever
+  // logged in. It used to be impossible to fix here at all: this form had no
+  // email field, and this function ignored the input even if one had been added.
+  const email = normalizeEmail(formData.get('email') as string)
   const phone = formData.get('phone') as string
   const address = formData.get('address') as string
   const familyBranch = formData.get('family_branch') as string
@@ -40,6 +51,9 @@ async function applyProfileUpdate(formData: FormData) {
   const instagram = formData.get('instagram') as string
   const linkedin = formData.get('linkedin') as string
   const dateOfBirth = readDateOfBirth(formData)
+
+  if (!email) throw new Error('Email is required.')
+  if (!EMAIL_RE.test(email)) throw new Error(`"${email}" is not a valid email address.`)
 
   const normalizedAddress = address || null
 
@@ -69,6 +83,7 @@ async function applyProfileUpdate(formData: FormData) {
     .from('members')
     .update({
       name,
+      email,
       phone: phone || null,
       address: normalizedAddress,
       family_branch: familyBranch || null,
@@ -87,7 +102,14 @@ async function applyProfileUpdate(formData: FormData) {
     })
     .eq('id', memberId)
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    // members.email is unique. Caught by hand rather than left as the raw
+    // constraint message, which names a Postgres index and nothing about email.
+    if (error.code === '23505') {
+      throw new Error(`${email} is already used by another profile in the directory.`)
+    }
+    throw new Error(error.message)
+  }
 
   await saveSupportNeeds(supabase, memberId, formData)
 
