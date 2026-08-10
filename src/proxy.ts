@@ -53,12 +53,28 @@ export async function proxy(request: NextRequest) {
   // purpose — so it is guaranteed to arrive here with no user. Left off this
   // list it would bounce to /login every single time, and the last thing anyone
   // saw on their way out would be a sign-in form telling them nothing worked.
+  //
+  // The last three are what makes the app installable, and each fails in a way
+  // that is hard to trace back to here:
+  //
+  //   /manifest.webmanifest — fetched by the browser on the landing page, where
+  //     nobody is signed in yet. Redirected, it comes back as HTML, the manifest
+  //     is discarded, and the install prompt simply never appears.
+  //   /sw.js — registration refuses any response that is not JavaScript, so a
+  //     redirect to /login means no service worker and no offline page, silently.
+  //   /offline — precached at install time over the network. If that request
+  //     redirects, the login page is what gets cached under the offline URL, and
+  //     the thing shown to somebody with no signal is a sign-in form they cannot
+  //     possibly complete.
   const isPublicPath =
     pathname.startsWith('/login') ||
     pathname.startsWith('/signup') ||
     pathname.startsWith('/terms') ||
     pathname.startsWith('/privacy') ||
     pathname.startsWith('/goodbye') ||
+    pathname.startsWith('/offline') ||
+    pathname === '/sw.js' ||
+    pathname === '/manifest.webmanifest' ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/webhooks') ||
     pathname.startsWith('/api/rsvp') ||

@@ -185,3 +185,23 @@ h2,
 h3 {
   font-family: var(--font-serif), Georgia, serif;
 }
+
+/* Room for the notch and the home indicator.
+   The layout.tsx viewport sets `viewportFit: cover`, which is what stops an
+   installed app showing letterbox bars down the sides of a modern iPhone — but
+   it also lets the page paint into the rounded corners and under the home
+   indicator. These put the content back inside the safe area.
+
+   Left and right rather than top: with statusBarStyle 'default' iOS keeps the
+   status bar opaque and starts the web view below it, so the only real risk at
+   the top is landscape on a notched phone, which the side insets cover. The
+   bottom inset is the one people actually notice — without it the last row of a
+   long list sits under the home indicator and cannot be tapped.
+
+   env() resolves to 0px in every browser that has no insets, so this is inert
+   on a desktop and in a normal tab. */
+body {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+}

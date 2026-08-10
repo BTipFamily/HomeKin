@@ -28,6 +28,16 @@ const MUST_BE_PUBLIC = [
   { path: '/terms', why: 'guideline 1.2 requires published terms, readable by anyone' },
   { path: '/privacy', why: 'App Store Connect opens the privacy policy URL with no session' },
   { path: '/goodbye', why: 'it is reached after the session has been deliberately destroyed' },
+  { path: '/offline', why: 'a redirect here caches the login page as the offline page' },
+]
+
+// Matched exactly rather than by prefix, because they are single files.
+const MUST_BE_PUBLIC_EXACT = [
+  { path: '/sw.js', why: 'registration refuses any response that is not JavaScript' },
+  {
+    path: '/manifest.webmanifest',
+    why: 'it is fetched on the landing page, where nobody is signed in yet',
+  },
 ]
 
 describe('routes a signed-out stranger must be able to open', () => {
@@ -38,6 +48,17 @@ describe('routes a signed-out stranger must be able to open', () => {
         listed,
         `${path} is missing from isPublicPath in src/proxy.ts, so a signed-out visitor is ` +
           `redirected to /login. ${why}.`
+      ).toBe(true)
+    })
+  }
+
+  for (const { path, why } of MUST_BE_PUBLIC_EXACT) {
+    it(`${path} is public — ${why}`, () => {
+      const listed = new RegExp(`pathname === ['"]${path.replace('.', '\\.')}['"]`).test(PROXY)
+      expect(
+        listed,
+        `${path} is missing from isPublicPath in src/proxy.ts. ${why}, so the app stops being ` +
+          `installable and nothing says why.`
       ).toBe(true)
     })
   }

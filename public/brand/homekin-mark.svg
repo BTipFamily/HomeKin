@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="HomeKin">
+  <!--
+    The source mark. Every PNG in the app is rasterised from this file by
+    scripts/generate-icons.mjs — edit here, run the script, never touch the PNGs.
+
+    Drawn for 16px first and 1024px second, which is the opposite of the usual
+    instinct and the reason it is a silhouette rather than a scene. At the size a
+    browser tab renders it, anything with an outline, a gradient or a thin line
+    turns to mush; a filled house with a hole in it survives.
+
+    Colours are the app's own: rust #8a4924 (the primary token) on cream #fbf2ea
+    (the background token). Not the dark-mode pair — an icon sits on the home screen
+    wallpaper, not on the app's background, so it has to hold its own.
+
+    The full square is painted. No transparency anywhere: Apple rejects a 1024
+    App Store icon with an alpha channel, and the maskable variants need paint
+    all the way to the edge or the platform crops into nothing.
+  -->
+
+  <rect width="512" height="512" fill="#8a4924"/>
+
+  <!--
+    House and heart in one path, using the even-odd rule so the heart is a hole
+    rather than a second shape. One shape means one silhouette, which is what
+    keeps it legible when it is 16 pixels across.
+
+    The safe area for a maskable icon is the middle 80% — a circle of radius 205
+    about the centre. Everything below stays inside it.
+  -->
+  <path fill="#fbf2ea" fill-rule="evenodd" d="
+    M 256 104
+    L 400 216
+    L 400 396
+    Q 400 412 384 412
+    L 128 412
+    Q 112 412 112 396
+    L 112 216
+    Z
+
+    M 256 356
+    C 256 356 196 316 196 278
+    C 196 256 213 242 232 242
+    C 243 242 251 247 256 254
+    C 261 247 269 242 280 242
+    C 299 242 316 256 316 278
+    C 316 316 256 356 256 356
+    Z
+  "/>
+</svg>
