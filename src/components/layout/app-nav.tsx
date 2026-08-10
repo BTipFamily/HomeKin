@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   BookOpen,
+  UserCog,
 } from 'lucide-react'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -193,6 +194,15 @@ export function AppNav({ member, reunions, currentReunionId }: AppNavProps) {
                 <Link href={`/directory/${member.id}/edit`}>
                   <Settings className="mr-2 h-4 w-4" />
                   Edit Profile
+                </Link>
+              </DropdownMenuItem>
+              {/* Blocked people, the terms, and deleting your account. Reachable
+                  in two taps from anywhere, which is what App Store guideline
+                  5.1.1(v) means by an account you can delete yourself. */}
+              <DropdownMenuItem asChild>
+                <Link href="/account">
+                  <UserCog className="mr-2 h-4 w-4" />
+                  Your Account
                 </Link>
               </DropdownMenuItem>
               {member.role === 'admin' && (

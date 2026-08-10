@@ -41,9 +41,24 @@ export async function proxy(request: NextRequest) {
   // /login before their handler ever runs. For the cron that failure is
   // completely silent: the scheduler follows the redirect, gets a 200 from the
   // login page, records a successful run, and not one reminder goes out.
+  //
+  // /terms and /privacy are public because they have to be readable by somebody
+  // who has not signed up and never will: App Store Connect is given the privacy
+  // policy as a URL and opens it without a session, and a reviewer reads both
+  // before making an account. Behind the redirect they would resolve to a login
+  // form, which reads as a broken link.
+  //
+  // /goodbye is public for a sharper reason. It is reached immediately after
+  // deleting your own account, when the session has just been destroyed on
+  // purpose — so it is guaranteed to arrive here with no user. Left off this
+  // list it would bounce to /login every single time, and the last thing anyone
+  // saw on their way out would be a sign-in form telling them nothing worked.
   const isPublicPath =
     pathname.startsWith('/login') ||
     pathname.startsWith('/signup') ||
+    pathname.startsWith('/terms') ||
+    pathname.startsWith('/privacy') ||
+    pathname.startsWith('/goodbye') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/webhooks') ||
     pathname.startsWith('/api/rsvp') ||

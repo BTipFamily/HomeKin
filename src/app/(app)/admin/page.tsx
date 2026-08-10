@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, Link2, ArrowRight, FileSpreadsheet } from 'lucide-react'
+import { Users, Link2, ArrowRight, FileSpreadsheet, Flag } from 'lucide-react'
 
 export default async function AdminPage() {
   const supabase = await createClient()
@@ -30,6 +30,16 @@ export default async function AdminPage() {
     .is('used_at', null)
     .gt('expires_at', new Date().toISOString())
 
+  // The number that decides whether this panel is urgent. Committee members
+  // reach the queue directly from /admin/reports; this tile is the reminder for
+  // an admin who was not looking for it.
+  const { count: openReports } = await supabase
+    .from('content_reports')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'open')
+
+  const openReportCount = openReports ?? 0
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <h1 className="mb-6 text-2xl font-bold">Admin Panel</h1>
@@ -49,6 +59,27 @@ export default async function AdminPage() {
             <Button asChild>
               <Link href="/admin/members">
                 Manage Members <ArrowRight className="ml-1.5 h-4 w-4" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Flag className="h-5 w-5" />
+              Reported Content
+            </CardTitle>
+            <CardDescription>
+              {openReportCount === 0
+                ? 'Nothing waiting. Reports from members land here.'
+                : `${openReportCount} waiting. The Terms promise a look within 24 hours.`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant={openReportCount > 0 ? 'default' : 'outline'}>
+              <Link href="/admin/reports">
+                Review Reports <ArrowRight className="ml-1.5 h-4 w-4" />
               </Link>
             </Button>
           </CardContent>

@@ -6,6 +6,7 @@ import { formatDuration } from '@/lib/media'
 import { Button } from '@/components/ui/button'
 import { deletePhoto } from '@/lib/actions/photos'
 import { ActionButton } from '@/components/action-button'
+import { ReportButton } from '@/components/report-button'
 import { EMPTY_LIKE_SUMMARY, type LikeSummary, type PhotoComment } from '@/lib/photo-social'
 import type { Role } from '@/types/database'
 import { PhotoSocialPanel } from './photo-social-panel'
@@ -120,6 +121,20 @@ export function PhotoGrid({
                   )}
                 </div>
               )}
+              {/* Reporting a photograph. On the tile rather than only inside
+                  the lightbox: somebody scrolling an album who sees something
+                  they should not have to look at needs it there and then, not
+                  two taps further in. */}
+              <div className="absolute bottom-1 left-1 hidden group-hover:block">
+                <ReportButton
+                  contentType="photo"
+                  contentId={photo.id}
+                  reunionId={reunionId}
+                  subject={photo.caption ?? null}
+                  className="h-6 w-6 bg-black/50 text-white hover:bg-black/70 hover:text-white"
+                />
+              </div>
+
               {/* The hover-hiding is on the button, not on the wrapper: if the
                   wrapper were hidden the refusal message would disappear the
                   moment the mouse left the tile, which is exactly when somebody

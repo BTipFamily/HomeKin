@@ -2,6 +2,7 @@
 
 import type { Transporter } from 'nodemailer'
 import { smtpConfig, type SmtpConfig } from '@/lib/email-config'
+import { htmlToText } from '@/lib/email-text'
 
 /** Why an email did not go out, so callers can say so instead of implying success. */
 export type EmailResult =
@@ -189,6 +190,11 @@ async function deliver(
       to,
       ...(bcc && bcc.length > 0 ? { bcc } : {}),
       subject,
+      // Both parts, so nodemailer emits multipart/alternative. HTML on its own
+      // is a spam signal old enough to predate most of the filters applying it,
+      // and it is the one thing about our deliverability that is free to fix.
+      // Derived rather than written per sender — see email-text.ts.
+      text: htmlToText(html),
       html,
     })
     return { sent: true, rejected: (info.rejected ?? []).map(addressOf) }
