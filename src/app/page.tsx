@@ -72,6 +72,18 @@ export default function LandingPage() {
           </Card>
         ))}
       </div>
+
+      {/* Reachable without an account on purpose: App Store Connect needs a
+          privacy policy URL it can open, and a reviewer reads both of these
+          before signing up for anything. */}
+      <footer className="mt-20 flex flex-wrap items-center gap-x-6 gap-y-2 border-t pt-8 text-sm text-muted-foreground">
+        <Link className="hover:text-foreground" href="/terms">
+          Terms of Use
+        </Link>
+        <Link className="hover:text-foreground" href="/privacy">
+          Privacy Policy
+        </Link>
+      </footer>
     </main>
   )
 }

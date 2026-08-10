@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { RoleBadge } from '@/components/role-badge'
+import { ReportButton } from '@/components/report-button'
+import { BlockMemberButton } from '@/components/block-member-button'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -56,6 +58,18 @@ export default async function MemberProfilePage({ params }: ProfilePageProps) {
 
   // Determine visibility of contact fields
   const myRole = currentMember?.role ?? 'member'
+
+  // Only your own block rows are readable — migration 035 sees to that — so this
+  // answers "have I blocked them", never "have they blocked me". Nobody is ever
+  // shown that they have been blocked.
+  const { data: myBlock } = await supabase
+    .from('member_blocks')
+    .select('blocked_id')
+    .eq('blocker_id', currentMember?.id ?? '')
+    .eq('blocked_id', member.id)
+    .maybeSingle()
+
+  const iBlockThem = Boolean(myBlock)
   const showPhone = canViewField(member.visibility_settings, 'phone', myRole)
   const showEmail = canViewField(member.visibility_settings, 'email', myRole)
   const showAddress = canViewField(member.visibility_settings, 'address', myRole)
@@ -121,14 +135,39 @@ export default async function MemberProfilePage({ params }: ProfilePageProps) {
                     )}
                   </div>
                 </div>
-                {canEdit && (
-                  <Button asChild variant="outline" size="sm" className="shrink-0">
-                    <Link href={`/directory/${member.id}/edit`}>
-                      <Edit className="mr-1.5 h-4 w-4" />
-                      Edit Profile
-                    </Link>
-                  </Button>
-                )}
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  {canEdit && (
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/directory/${member.id}/edit`}>
+                        <Edit className="mr-1.5 h-4 w-4" />
+                        Edit Profile
+                      </Link>
+                    </Button>
+                  )}
+                  {/* Reporting and blocking, on everybody but yourself. Both
+                      have to be reachable from a person as well as from a
+                      single photo or comment: somebody who wants nothing more
+                      to do with a relative should not have to hunt for one of
+                      their posts first. */}
+                  {!isMe && (
+                    <>
+                      <ReportButton
+                        contentType="member"
+                        contentId={member.id}
+                        subject={member.name}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Report
+                      </ReportButton>
+                      <BlockMemberButton
+                        memberId={member.id}
+                        memberName={member.name}
+                        blocked={iBlockThem}
+                      />
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </div>

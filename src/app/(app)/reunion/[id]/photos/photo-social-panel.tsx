@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { Heart, Loader2, Send, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ReportButton } from '@/components/report-button'
 import { addComment, deleteComment, toggleLike } from '@/lib/actions/photo-social'
 import {
   EMPTY_LIKE_SUMMARY,
@@ -140,15 +141,29 @@ export function PhotoSocialPanel({
                 <span className="font-medium">{comment.author?.name ?? 'Someone'}</span>{' '}
                 <span className="text-white/80">{comment.body}</span>
               </p>
-              {(canModerate || comment.author?.id === currentMemberId) && (
-                <button
-                  onClick={() => handleDelete(comment.id)}
-                  className="mt-0.5 hidden shrink-0 text-white/40 hover:text-destructive group-hover:block"
-                  aria-label="Delete comment"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              )}
+              <div className="mt-0.5 flex shrink-0 items-center gap-1">
+                {/* Reporting somebody else's comment. Not your own — there is a
+                    delete button for that, and a queue full of people
+                    reporting themselves helps nobody. */}
+                {comment.author?.id !== currentMemberId && (
+                  <ReportButton
+                    contentType="photo_comment"
+                    contentId={comment.id}
+                    reunionId={reunionId}
+                    subject={comment.author?.name ?? null}
+                    className="h-6 w-6 text-white/40 hover:bg-white/10 hover:text-white"
+                  />
+                )}
+                {(canModerate || comment.author?.id === currentMemberId) && (
+                  <button
+                    onClick={() => handleDelete(comment.id)}
+                    className="hidden shrink-0 text-white/40 hover:text-destructive group-hover:block"
+                    aria-label="Delete comment"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
             </div>
           ))
         )}
