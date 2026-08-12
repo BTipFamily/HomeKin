@@ -39,6 +39,10 @@ export default async function AdminMembersPage() {
     .from('members')
     .select('*')
     .order('name')
+  // `.order('name')` sorts by the database's collation, which can put
+  // capitalized/accented names out of alphabetical order — re-sort here so
+  // the list always reads A-to-Z regardless of collation.
+  members?.sort((a, b) => a.name.localeCompare(b.name))
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">

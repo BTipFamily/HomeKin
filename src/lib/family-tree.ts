@@ -56,6 +56,21 @@ function ensure<K, V>(map: Map<K, Map<string, V>>, key: K): Map<string, V> {
   return inner
 }
 
+// relatives-tree models each person as descending from at most one *couple*
+// (0-2 parents). HomeKin's parent_child_kind lets a member end up with 3+
+// recorded parents (e.g. both biological parents plus a step-parent, all
+// kept on purpose) — feeding that into calcTree crashes deep inside its
+// layout arithmetic (`nextFamily.children[index].pos` on a lookup that
+// can't succeed) rather than failing gracefully. Cap at two for the tree
+// layout only, preferring biological edges; every recorded parent still
+// shows on the member's profile page.
+function capParents<T extends { type: 'blood' | 'adopted' }>(parents: T[]): T[] {
+  if (parents.length <= 2) return parents
+  const blood = parents.filter((p) => p.type === 'blood')
+  const rest = parents.filter((p) => p.type !== 'blood')
+  return [...blood, ...rest].slice(0, 2)
+}
+
 /**
  * Denormalizes the `relationships` table into relatives-tree's node graph.
  * Sibling edges (including half-sibling detection) are derived here from
@@ -108,7 +123,9 @@ export function buildFamilyTreeNodes(
   return members.map((m) => ({
     id: m.id,
     gender: genderOf.get(m.id) ?? 'male',
-    parents: [...(parentsOf.get(m.id)?.entries() ?? [])].map(([id, type]) => ({ id, type })),
+    parents: capParents(
+      [...(parentsOf.get(m.id)?.entries() ?? [])].map(([id, type]) => ({ id, type }))
+    ),
     children: [...(childrenOf.get(m.id)?.entries() ?? [])].map(([id, type]) => ({ id, type })),
     siblings: [...(siblingsOf.get(m.id)?.entries() ?? [])].map(([id, type]) => ({ id, type })),
     spouses: [...(spousesOf.get(m.id)?.entries() ?? [])].map(([id, type]) => ({ id, type })),

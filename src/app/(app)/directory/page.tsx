@@ -44,6 +44,10 @@ export default async function DirectoryPage({ searchParams }: DirectoryPageProps
   }
 
   const { data: members } = await membersQuery
+  // `.order('name')` sorts by the database's collation, which can put
+  // capitalized/accented names out of alphabetical order — re-sort here so
+  // the directory always reads A-to-Z regardless of collation.
+  members?.sort((a, b) => a.name.localeCompare(b.name))
 
   // Get unique branches for filter
   const { data: branches } = await supabase
