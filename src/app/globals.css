@@ -205,3 +205,60 @@ body {
   padding-right: env(safe-area-inset-right);
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+/* ============================================================
+   Family tree — canvas and branch tints
+
+   The tree draws on a recessive ground so the cards carry the contrast,
+   rather than on the page background. Each family branch gets one of six
+   tints for its cards' photo panel (see src/lib/branch-tint.ts); `-ink` is
+   the silhouette drawn on that panel when a member has no photo.
+
+   Hues stay inside the warm range the rest of the palette works in — a
+   stock rainbow here would read as a different product. Saturation is kept
+   low so six of them can sit next to each other without any one shouting.
+   ============================================================ */
+:root {
+  --tree-canvas: 30 28% 90%;
+  --tree-line: 28 16% 62%;
+
+  --tree-tint-none: 30 12% 82%;
+  --tree-tint-none-ink: 30 10% 46%;
+  --tree-tint-clay: 18 46% 79%;
+  --tree-tint-clay-ink: 18 40% 38%;
+  --tree-tint-wheat: 40 52% 78%;
+  --tree-tint-wheat-ink: 40 50% 32%;
+  --tree-tint-sage: 104 22% 77%;
+  --tree-tint-sage-ink: 104 26% 30%;
+  --tree-tint-teal: 180 24% 76%;
+  --tree-tint-teal-ink: 182 32% 27%;
+  --tree-tint-plum: 342 28% 80%;
+  --tree-tint-plum-ink: 342 26% 40%;
+  --tree-tint-lilac: 280 22% 80%;
+  --tree-tint-lilac-ink: 280 22% 42%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Deeper than --background so the canvas still reads as a surface the
+       tree sits on, and the tints are darkened to match rather than reused —
+       the light pastels glow on an espresso ground. */
+    --tree-canvas: 24 22% 12%;
+    --tree-line: 26 12% 44%;
+
+    --tree-tint-none: 30 8% 30%;
+    --tree-tint-none-ink: 30 10% 62%;
+    --tree-tint-clay: 18 30% 34%;
+    --tree-tint-clay-ink: 18 46% 74%;
+    --tree-tint-wheat: 40 34% 32%;
+    --tree-tint-wheat-ink: 40 52% 74%;
+    --tree-tint-sage: 104 18% 30%;
+    --tree-tint-sage-ink: 104 28% 72%;
+    --tree-tint-teal: 182 22% 29%;
+    --tree-tint-teal-ink: 180 30% 71%;
+    --tree-tint-plum: 342 20% 34%;
+    --tree-tint-plum-ink: 342 34% 78%;
+    --tree-tint-lilac: 280 16% 35%;
+    --tree-tint-lilac-ink: 280 28% 78%;
+  }
+}

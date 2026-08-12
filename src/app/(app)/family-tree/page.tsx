@@ -3,7 +3,11 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
 import { buildFamilyTreeNodes, connectedMemberIds } from '@/lib/family-tree'
-import { FamilyTreeView } from './family-tree-view'
+import { buildBranchTintMap, tintFor } from '@/lib/branch-tint'
+import { buildKinshipIndex, describeKinship } from '@/lib/kinship'
+import { canViewField } from '@/lib/visibility'
+import { FamilyTreeView, type TreeMember } from './family-tree-view'
+import type { Role } from '@/types/database'
 
 interface FamilyTreePageProps {
   searchParams: Promise<{ includeUnrelated?: string }>
@@ -18,7 +22,7 @@ export default async function FamilyTreePage({ searchParams }: FamilyTreePagePro
 
   const { data: currentMember } = await supabase
     .from('members')
-    .select('id')
+    .select('id, role')
     .eq('auth_user_id', user.id)
     .single()
 
@@ -27,7 +31,9 @@ export default async function FamilyTreePage({ searchParams }: FamilyTreePagePro
 
   const { data: members } = await supabase
     .from('members')
-    .select('id, name, photo_url, family_branch, gender')
+    .select(
+      'id, name, photo_url, family_branch, gender, date_of_birth, visibility_settings, created_by_proxy'
+    )
     .order('name')
   const { data: relationships } = await supabase.from('relationships').select('*')
 
@@ -41,11 +47,42 @@ export default async function FamilyTreePage({ searchParams }: FamilyTreePagePro
 
   const nodes = buildFamilyTreeNodes(visibleMembers, allRelationships)
 
-  const memberLookup = Object.fromEntries(
-    visibleMembers.map((m) => [
-      m.id,
-      { name: m.name, photo_url: m.photo_url, family_branch: m.family_branch },
-    ])
+  // Built from every member, not just the visible ones, so a branch keeps its
+  // colour when the unrelated-attendees toggle changes what is on screen.
+  const branchTints = buildBranchTintMap(allMembers.map((m) => m.family_branch))
+
+  const viewerRole = (currentMember?.role as Role) ?? 'member'
+  const kinshipIndex = buildKinshipIndex(allRelationships)
+  const genderOf = new Map(allMembers.map((m) => [m.id, m.gender]))
+
+  const memberLookup: Record<string, TreeMember> = Object.fromEntries(
+    visibleMembers.map((m) => {
+      const isMe = m.id === currentMember?.id
+      // Gated on the same visibility setting the profile page uses. The
+      // directory deliberately shows month/day without the year; here the
+      // year is the point — it is what separates one generation from the
+      // next — so it follows the setting rather than being hidden outright.
+      const canSeeBirth =
+        isMe || canViewField(m.visibility_settings, 'date_of_birth', viewerRole)
+
+      return [
+        m.id,
+        {
+          id: m.id,
+          name: m.name,
+          photo_url: m.photo_url,
+          family_branch: m.family_branch,
+          tint: tintFor(m.family_branch, branchTints),
+          lifespan: m.date_of_birth && canSeeBirth ? `b. ${m.date_of_birth.slice(0, 4)}` : null,
+          isProxy: m.created_by_proxy,
+          kinship: currentMember
+            ? describeKinship(currentMember.id, m.id, kinshipIndex, {
+                genderOf: (id) => genderOf.get(id) ?? null,
+              })
+            : null,
+        } satisfies TreeMember,
+      ]
+    })
   )
 
   const defaultRootId =
