@@ -1,4 +1,4 @@
-import { buildKinshipIndex, describeKinship } from '@/lib/kinship'
+import { buildKinshipIndex, describeKinship, pluralizeKinship } from '@/lib/kinship'
 import type {
   Gender,
   ParentChildKind,
@@ -232,6 +232,32 @@ describe('describeKinship — in-laws', () => {
   test("names a spouse's parent", () => {
     const rels = [partnerOf('me', 'spouse'), parentOf('theirMum', 'spouse')]
     expect(term(rels, 'me', 'theirMum')).toBe('Parent-in-law')
+  })
+})
+
+describe('pluralizeKinship', () => {
+  test('lower-cases so it reads as the tail of "Will\'s ..."', () => {
+    expect(pluralizeKinship('Parent')).toBe('parents')
+    expect(pluralizeKinship('Sibling')).toBe('siblings')
+    expect(pluralizeKinship('1st cousin')).toBe('1st cousins')
+  })
+
+  test('handles the irregular child plural', () => {
+    expect(pluralizeKinship('Child')).toBe('children')
+    expect(pluralizeKinship('Grandchild')).toBe('grandchildren')
+    expect(pluralizeKinship('Stepchild')).toBe('stepchildren')
+    expect(pluralizeKinship('Great-grandchild')).toBe('great-grandchildren')
+  })
+
+  test('splits the paired neutral terms', () => {
+    expect(pluralizeKinship('Aunt or uncle')).toBe('aunts and uncles')
+    expect(pluralizeKinship('Niece or nephew')).toBe('nieces and nephews')
+  })
+
+  test('pluralizes in-laws on the head noun', () => {
+    expect(pluralizeKinship('Sibling-in-law')).toBe('siblings-in-law')
+    expect(pluralizeKinship('Parent-in-law')).toBe('parents-in-law')
+    expect(pluralizeKinship('Child-in-law')).toBe('children-in-law')
   })
 })
 

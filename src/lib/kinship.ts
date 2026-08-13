@@ -242,6 +242,25 @@ function directBloodTerm(
   return bloodTerm(best.up, best.down, gender)
 }
 
+/**
+ * Turns a kinship term into the plural used to caption a row of the tree:
+ * "Parent" -> "parents", "Aunt or uncle" -> "aunts and uncles". Lower-cased
+ * because it is read as the tail of "Will's ...".
+ */
+export function pluralizeKinship(term: string): string {
+  const lowered = term.charAt(0).toLowerCase() + term.slice(1)
+  // "sibling-in-law" pluralizes on the head noun, not the tail.
+  if (lowered.endsWith('-in-law')) {
+    return `${pluralizeKinship(lowered.slice(0, -'-in-law'.length))}-in-law`
+  }
+  if (lowered.includes(' or ')) {
+    const [first, second] = lowered.split(' or ')
+    return `${first}s and ${second}s`
+  }
+  if (/child$/.test(lowered)) return lowered.replace(/child$/, 'children')
+  return `${lowered}s`
+}
+
 export type DescribeKinshipOptions = {
   /** Looks up a member's gender so terms can be specific where the data allows. */
   genderOf?: (memberId: string) => Gender | null
