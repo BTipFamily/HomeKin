@@ -1,10 +1,12 @@
 # HomeKin
 
 A family reunion planner: one place for the family directory, the family tree,
-event signups, money, photos and chat.
+the reunion itself — interest, dates, places, events, signups, money, photos,
+chat — and the guides that explain all of it.
 
 Built with Next.js (App Router), Supabase (Postgres, Auth, Storage, RLS),
-Stripe for card payments, SMTP (Gmail) for email and Mapbox for maps.
+Stripe for card payments, SMTP (Gmail) for email and Mapbox for maps. It
+installs to a phone or a Mac Dock as a PWA.
 
 ---
 
@@ -43,6 +45,7 @@ in your Vercel project (**Production**, and **Preview** if you use it).
 | `SMTP_SECURE` | no | Implicit TLS. Inferred from the port (465 → on), so only set to override |
 | `EMAIL_FROM` | no | e.g. `HomeKin <you@gmail.com>`. The address **must** be `SMTP_USER` — Gmail rewrites or rejects anything else. Defaults to `SMTP_USER` |
 | `CRON_SECRET` | for reminders | Bearer token Vercel Cron sends to `/api/cron/reminders`. Without it the route refuses to run — and without the route, no deadline reminders go out |
+| `CONTACT_EMAIL` | before publishing | The address printed on `/privacy` and `/terms`, and the one people report problems to. Unset, both pages render a visible "not ready to publish" banner and an obvious placeholder address rather than something plausible-looking. Deliberately **not** `NEXT_PUBLIC_` — a public variable is inlined at build time, so setting it in the hosting dashboard would change nothing until the next build |
 | `NEXT_PUBLIC_MAPBOX_TOKEN` | for maps | Public token, URL-restricted to your domain |
 | `MAPBOX_SECRET_TOKEN` | for maps | Secret token scoped to `geocoding`, for server-side address lookups |
 
@@ -51,9 +54,9 @@ changing one, redeploy.
 
 ### Email, and why it goes through Gmail
 
-Everything HomeKin sends — invite codes, RSVP invitations, announcements **and the
-signup confirmation email** — goes out over SMTP from `src/lib/email.ts`, pointed
-at Gmail by default.
+Everything HomeKin sends — invite codes, RSVP invitations, announcements,
+statements, receipts, deadline reminders **and the signup confirmation email** —
+goes out over SMTP from `src/lib/email.ts`, pointed at Gmail by default.
 
 Gmail rather than a transactional provider because this app has no domain of its
 own. Sending from a free address is only legitimate through the provider that
@@ -67,7 +70,9 @@ address as the sender with nothing to buy.
 [myaccount.google.com](https://myaccount.google.com/), create an app password
 under **Security → 2-Step Verification → App passwords**, and set `SMTP_USER` to
 the Gmail address and `SMTP_PASS` to the 16 characters it gives you. Your
-ordinary account password will not work.
+ordinary account password will not work. `node scripts/send-test-email.mjs`
+proves the credentials work in about a second, rather than a week later when
+somebody tries to sign up.
 
 **The limit that matters:** free Gmail allows **500 recipients per day**, counting
 every To, Cc and Bcc address. Announcements go out in batches of 45 BCC
@@ -159,31 +164,82 @@ option for getting a fresh one.
   and date of birth (shown with age).
 - Per-field visibility: phone, address, email and date of birth can each be
   visible to all signed-in members, to committee and admins only, or to nobody.
+- **Dietary, health and mobility needs**, on their own table with its own
+  policy — visible to the member, the committee and admins, and to nobody else.
+  They are deliberately *not* on `members` with the other visibility settings:
+  that table has a single "every signed-in member can read every row" policy, so
+  a health note stored there would be readable by the whole family whatever the
+  UI showed.
 - Search and filter by name and family branch.
+- **Households** — the unit a family actually answers as. One adult replies for
+  four people, books one room and pays one bill. Money stays keyed to the member
+  who owes it; a household only groups people.
 - **Spreadsheet import** — `.xlsx` or `.csv`, with a downloadable template.
   Validates everything before writing, previews exactly what will happen, and
   wires up parent/child and spouse relationships in the same pass.
 - **Merge duplicates** (admin) — finds likely duplicate profiles and folds one
-  into the other, moving signups, balances, relationships, photo tags and
-  history across.
+  into the other, moving signups, balances, payments, relationships, households,
+  photo tags, comments, likes and history across.
 - **Delete members** (admin), with a preview of everything that goes with them.
 
 ### Family tree and map
 - Parent/child and partner relationships, with kinds (biological, step,
   adoptive, foster) and partner status.
+- A pedigree-style tree: one row per generation, ancestors above the focus
+  person and descendants below, couples side by side, children centred under
+  their parents. Branches expand and collapse upward and downward from whoever
+  you are looking at. The layout is ours (`src/lib/tree-layout.ts`) rather than a
+  library's, so a relationship it cannot place is simply not drawn instead of
+  throwing.
+- **Kinship naming** — "Aunt", "Father-in-law", "2nd cousin once removed" —
+  computed from the same relationship rows, on the tree and on any profile.
 - Travel map of where members are coming from, geocoded via Mapbox.
 
-### Reunions and events
+### Planning a reunion
 - Reunion creation wizard, with a **timeline builder** and **budget estimator**.
+- **Reunion phases** — draft, interest, planning, registration, finalized,
+  completed. Advisory by design: they decide what the app leads with and
+  suggests next, never what it forbids, so an organiser who has not flipped the
+  status has not thereby locked a relative out of paying a deposit.
+- **Interest round** — a typed form, not a free-text survey: would you come,
+  how many adults / youth / children, which months, how long, what budget, what
+  lodging, are you willing to help. Typed because none of what follows is
+  possible over free text.
+- **Interest summary** for the committee, with the headcount as an honest
+  **range** — a "probably" eighteen months out is a guess, and counting it as a
+  yes produces a confident number a venue gets booked against.
+- **Date overlap** — families give the ranges they can travel; the committee
+  sees the best windows, who each window leaves out, and how the suggestions
+  rank.
+- **Location shortlist and voting** — the committee promotes suggestions to a
+  shortlist carrying the details that actually decide it (capacity, cost per
+  person, accessibility), and the family votes, one vote each. Two steps because
+  they answer different questions: where people want to go, and where the
+  reunion can go.
+- **Planning timeline** — the committee's to-do list in the months beforehand.
+
+### Events and the weekend itself
 - Sub-events with dates, times, locations, per-person cost, capacity and
   duration.
+- **Booking modes.** `homekin` — the committee prices it and HomeKin bills for
+  it. `direct` — the family books and pays on the vendor's own site and the
+  committee only needs to know who is going. `group` — the vendor drops the rate
+  once enough people commit, so **price tiers** apply and the page can say "3
+  more and everyone pays $45".
 - Signups with headcount and guest names, capacity-checked.
-- **Payment deadlines** per event, set when the event is created — percentage,
-  fixed per person, or the remaining balance — each with its own reminder
-  schedule.
-- RSVP links that work without an account.
-- Surveys, photo albums with tagging, and announcements.
-- **Delete reunions** (admin), including cleanup of photo files in storage.
+- **Named attendees** behind the headcount — enough to order the right number of
+  children's meals and know who needs step-free access, which a headcount alone
+  can never answer.
+- **Payment deadlines** per event — percentage, fixed per person, or the
+  remaining balance — each with its own reminder schedule.
+- **Agenda** — the running order for the weekend, in order, with who is coming.
+  The thing that gets printed and left on a table by the door. Distinct from the
+  planning timeline, which is the months beforehand.
+- RSVP links and invitations that work without an account.
+- Surveys — members can revise their own answers, and the committee can take a
+  survey down (which takes its responses with it, and says how many first).
+- **Delete reunions** (admin), including cleanup of photo and video files in
+  storage.
 
 ### Money
 - Stripe Checkout for card payments, plus manual methods (Zelle, Cash App,
@@ -202,20 +258,84 @@ option for getting a fresh one.
 - Members see their own history on their profile; committee and admins see
   anyone's.
 
-### Chat and notifications
-- Per-reunion and per-event chat.
+### Photos, chat and notifications
+- Photo albums per reunion, with **tagging**, **comments** and **likes**.
+- **Video** as well as photos — MP4, MOV and WebM up to 100MB (images 10MB), ten
+  files a batch. A poster frame is captured in the browser at upload so the grid
+  does not have to load every video to draw a tile; if that fails the upload
+  still succeeds. The limits live in one module so what the UI promises and what
+  the bucket enforces cannot drift apart.
+- Per-reunion and per-event chat, and announcements.
 - A roster of who has been **recently active** — this is last-seen activity, not
   true presence; there is no disconnect signal, so nobody is described as
   "online".
 - Unread badges for chat messages and announcements on the dashboard and the
   reunion page.
 
+### Safety, privacy and leaving
+- **Report** a photo, a comment, a chat message, an announcement or a person,
+  with reasons written in the words a family member would use rather than
+  platform vocabulary.
+- **Block** somebody. It hides them from you *and* you from them, enforced by
+  restrictive RLS policies rather than by filtering in the UI, so nothing
+  depends on every query remembering.
+- A **committee queue** at `/admin/reports`, reviewed within 24 hours. A report
+  survives the content it points at, so deleting the photo does not erase the
+  evidence that it was reported.
+- **Close your own account** from `/account` — no admin needed, with a preview
+  of exactly what is destroyed, including any record of money owed or paid. The
+  one refusal is the last admin: promote somebody first, then leave.
+- Public `/privacy` and `/terms`, readable with no session, and `/goodbye`,
+  which is where deleting your account lands. All three are outside the auth
+  redirect on purpose — a login form is the worst possible confirmation that
+  deleting your account worked, and it reads as a broken link to anybody
+  checking the privacy policy.
+- The whole app is `noindex, nofollow`: it is invitation-only and holds a
+  family's addresses and photographs.
+
+### Guides
+Thirty-three in-app guides at `/guides`, in seven sections, covering every
+feature from joining with an invite code to confirming a payment. They are
+statically imported and prerendered, so a missing or misnamed guide is a build
+error rather than a 404 nobody notices. Every guide is listed for everybody —
+a badge explains that a step needs the committee or an admin rather than hiding
+the page, because knowing how the reunion is run is useful even if you are not
+running it.
+
 ### Roles
 | Role | Can do |
 | --- | --- |
-| `member` | View the directory and family tree, sign up for events, pay, chat, upload photos, answer surveys |
-| `committee` | Everything above, plus manage reunions and events, invite members, import the directory, confirm payments, run reports |
+| `member` | View the directory and family tree, answer the interest form and vote on locations, sign up for events, pay, chat, upload photos and video, answer surveys, report content, block people, close their own account |
+| `committee` | Everything above, plus manage reunions and events, run the planning and shortlist, invite members, import the directory, confirm payments, run reports, act on the moderation queue |
 | `admin` | Everything above, plus manage roles, merge and delete members, delete reunions, generate invite codes |
+
+---
+
+## Installing it
+
+HomeKin is a PWA. `src/app/manifest.ts` gets it onto an iPhone or iPad home
+screen and into the Mac Dock with its own icon and no browser chrome, today and
+without anybody's review; it is also the groundwork a native shell would need
+later, since the icons, colours and name come from there rather than an Xcode
+project.
+
+`public/sw.js` is deliberately the most cautious service worker that is still
+useful, because of what this app holds — addresses, birthdays, photographs of
+children, health notes. **No page HTML is ever cached.** Navigations go to the
+network and, failing that, to a single `/offline` page that contains nothing
+about anybody. What is cached is the build's own hashed JS and CSS and the
+icons: identical for everyone, and the difference between a cold start on hotel
+wifi and a spinner. A reunion venue is exactly where signal fails.
+
+Icons are generated from `public/brand/homekin-mark.svg`:
+
+```bash
+npm run icons
+```
+
+`src/__tests__/pwa-assets.test.ts` reads the committed PNGs and checks their
+dimensions and alpha channel, so a hand-edited or deleted icon fails there
+rather than as a blank square on somebody's home screen.
 
 ---
 
@@ -249,6 +369,10 @@ Run them in the Supabase SQL editor (or `supabase db push` if you use the CLI).
 | `029_interest_dates_and_places` | Date ranges, location suggestions and food preferences on the interest form |
 | `030_member_support_needs` | Dietary/health/mobility on their own table with a real policy; volunteer fields on `members` |
 | `031_location_shortlist` | Committee shortlist of places and one-vote-per-member voting |
+| `032_survey_response_update` | An UPDATE policy on `survey_responses`, so changing your mind stops failing silently |
+| `033_survey_delete` | Committee/admin can delete a survey; its responses cascade with it |
+| `034_delete_my_account` | `delete_my_account()` — the same work as `delete_member()`, authorized the other way round. Refuses only the last admin |
+| `035_reports_and_blocks` | `content_reports` and `member_blocks`, with restrictive policies that hide a blocked person in both directions |
 
 If a feature's button appears but fails when clicked, an unapplied migration is
 the first thing to check — the UI does not gate on schema version.
@@ -274,6 +398,16 @@ confirming a manual payment erased them, both irrecoverably. Record a payment by
 inserting a row; correct one by editing or deleting that row; refund by
 recording a negative amount.
 
+### Blocking and support needs are enforced in the database
+
+Both could have been done in the UI, and neither is. A blocked person is hidden
+by restrictive policies in migration `035`, so a query that forgets to filter
+still cannot see them; support needs live on their own table in migration `030`
+rather than in `members.visibility_settings`, because `members` has a single
+"any signed-in member may read any row" select policy and a health note stored
+there would have been readable by the whole family regardless of what the page
+chose to render.
+
 ---
 
 ## Testing
@@ -281,6 +415,7 @@ recording a negative amount.
 ```bash
 npm test          # unit tests (vitest)
 npm run test:db   # schema + SQL function tests against a throwaway Postgres
+npm run lint
 ```
 
 Email delivery is covered end to end: `src/__tests__/email-smtp.test.ts` starts a
@@ -293,14 +428,24 @@ and no credentials needed.
 
 `npm run test:db` needs a local Postgres (`apt install postgresql-16`). It
 creates a temporary cluster, applies every migration from scratch, and asserts
-the behaviour of the SQL functions — including the refusals: non-admins, merging
-a profile into itself, an admin deleting their own profile (which is what
-guarantees an admin always remains), and merging two members who both hold a
-balance for the same event. It never touches your Supabase project.
+the behaviour of the SQL functions — merges, deletes, the payments ledger,
+unread counts, deadlines, photo social, households and attendees, the interest
+round, event modes and support needs — including the refusals: non-admins,
+merging a profile into itself, an admin deleting their own profile (which is
+what guarantees an admin always remains), and merging two members who both hold
+a balance for the same event. It never touches your Supabase project.
 
 Unit tests cover the pure logic: the CSV and XLSX readers, import validation,
-duplicate detection, birthday parsing, budget and timeline generation, chat
+duplicate detection, birthday parsing, kinship naming, tree layout, budget and
+timeline generation, event pricing and capacity, the payment schedule, statement
+and reminder wording, interest summarising, date overlap, agenda ordering,
+survey and moderation rules, account-deletion wording, media limits, chat
 merge/dedupe and presence bucketing.
+
+Two suites assert things that are otherwise only enforced somewhere expensive:
+`public-routes.test.ts` reads `src/proxy.ts` and fails if `/privacy`, `/terms` or
+`/goodbye` slip behind the auth redirect, and `pwa-assets.test.ts` checks the
+committed icons against the rules a store only applies at upload time.
 
 ---
 
@@ -315,7 +460,9 @@ Hosted on Vercel. Beyond the environment variables above:
    the test-mode one will not work.
 2. **Supabase.** Apply any outstanding migrations, configure SMTP, and
    allow-list your production URL for auth redirects.
-3. **Redeploy** after any environment variable change.
+3. **Set `CONTACT_EMAIL`** to an address somebody reads. Until you do, `/privacy`
+   and `/terms` say so on the page.
+4. **Redeploy** after any environment variable change.
 
 ---
 
@@ -323,14 +470,27 @@ Hosted on Vercel. Beyond the environment variables above:
 
 ```
 src/
-  app/(app)/         signed-in pages: dashboard, directory, reunions, admin
+  app/(app)/         signed-in pages: dashboard, directory, family tree,
+                     reunions, guides, account, admin
   app/(auth)/        login and signup
-  app/api/           webhooks, RSVP links, chat polling, presence, CSV template
+  app/api/           webhooks, RSVP links, chat polling, presence, cron
+                     reminders, checkout, CSV template, auth callbacks
+  app/manifest.ts    PWA manifest
+  app/privacy|terms|goodbye|offline   public pages, outside the auth redirect
+  proxy.ts           session refresh and the public-route list
   components/        shared UI and design-system primitives
-  lib/               pure logic (csv, xlsx, import, merge, history, chat,
-                     presence, birthday, budget, timeline)
+  content/guides/    the guide pages, one file each
+  lib/               pure logic (csv, xlsx, import, merge, kinship, tree
+                     layout, chat, presence, birthday, budget, timeline,
+                     agenda, interest, date overlap, pricing, payment
+                     schedule, moderation, media, legal)
   lib/actions/       server actions, grouped by feature
+  lib/guides/        guide registry and section metadata
   types/database.ts  hand-maintained row types
+public/
+  sw.js              service worker: shell only, never page HTML
+  icons/, brand/     generated icons and the source mark
+scripts/             icon generation, SMTP smoke test, admin password reset
 supabase/
   migrations/        applied in filename order
   tests/             SQL suite, run by test:db
@@ -338,7 +498,9 @@ supabase/
 
 Logic that can be pure lives in `lib/` without Supabase imports, so it can be
 tested directly; anything touching the database sits in `lib/actions/` or a
-route handler.
+route handler. Note that a `'use server'` module may export async functions and
+nothing else — which is why types and wording for a feature (`lib/moderation.ts`,
+`lib/account.ts`, `lib/surveys.ts`) sit beside, rather than inside, its actions.
 
 See `AGENTS.md` before making changes — this repository pins a Next.js version
 whose APIs differ from older releases, and the bundled docs in
