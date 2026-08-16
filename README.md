@@ -165,7 +165,10 @@ option for getting a fresh one.
 - Per-field visibility: phone, address, email and date of birth can each be
   visible to all signed-in members, to committee and admins only, or to nobody.
 - **Dietary, health and mobility needs**, on their own table with its own
-  policy — visible to the member, the committee and admins, and to nobody else.
+  policy — visible to the member, the committee and admins, and to the rest of
+  the family only if the member turns on `share_with_family`. That flag is
+  opt-in and defaults to off, because defaulting it on would share somebody's
+  health note the moment they typed it.
   They are deliberately *not* on `members` with the other visibility settings:
   that table has a single "every signed-in member can read every row" policy, so
   a health note stored there would be readable by the whole family whatever the
