@@ -117,3 +117,7 @@ psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/14_event_mod
 echo "--- support needs and interest dates"
 psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/15_support_needs.sql" 2>&1 \
   | sed 's/^psql.*NOTICE:  /    /'
+
+echo "--- webhook idempotency and refunds"
+psql -q -d homekin_test -v ON_ERROR_STOP=1 -f "$ROOT/supabase/tests/16_webhook_events.sql" 2>&1 \
+  | sed 's/^psql.*NOTICE:  /    /'

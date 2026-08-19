@@ -42,7 +42,8 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Balance already paid' }, { status: 400 })
   }
 
-  const amountDue = Math.round((balance.amount_owed - balance.amount_paid) * 100) // cents
+  const paidCents = Math.round(balance.amount_paid * 100)
+  const amountDue = Math.round(balance.amount_owed * 100) - paidCents
   if (amountDue <= 0) {
     return Response.json({ error: 'Nothing owed' }, { status: 400 })
   }
@@ -50,6 +51,16 @@ export async function POST(request: NextRequest) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const eventName = (balance as any).sub_event?.name ?? 'General Fund'
   const reunionName = (balance as any).reunion?.name ?? 'Reunion'
+
+  // Derived from where this balance actually stands, not from a random id.
+  //
+  // A member double-tapping "Pay" sends two identical requests; both compute
+  // the same key, and Stripe returns the first session rather than opening a
+  // second one against the same money. Anything that genuinely changes what is
+  // owed — a payment landing, the committee repricing the event — changes the
+  // key with it, so the next attempt is a new session for the new amount
+  // rather than a cached one for the old.
+  const idempotencyKey = `balance:${balanceId}:paid:${paidCents}:due:${amountDue}`
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
@@ -74,7 +85,19 @@ export async function POST(request: NextRequest) {
       reunion_id: balance.reunion_id,
       sub_event_id: balance.sub_event_id ?? 'general_fund',
     },
-  })
+    // The same tags again, one level down. Session metadata does not reach the
+    // charge, and the charge is all the nightly reconciliation has to work
+    // from: without this it cannot tell a HomeKin payment it somehow missed
+    // from an unrelated charge on a Stripe account the family also uses for
+    // something else, and would report the second as a lost payment every night.
+    payment_intent_data: {
+      metadata: {
+        balance_id: balanceId,
+        member_id: member.id,
+        reunion_id: balance.reunion_id,
+      },
+    },
+  }, { idempotencyKey })
 
   // Record the session ID so the webhook can look up this balance
   await serviceClient
