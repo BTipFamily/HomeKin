@@ -286,8 +286,33 @@ export type Payment = {
    * value the database is happy to store. Use formatPaymentMethod() to render.
    */
   stripe_payment_method: string | null
+  /**
+   * The PaymentIntent behind a card payment. Set so a refund event, which knows
+   * nothing about the Checkout Session, can find the row it reverses. Null on
+   * manual payments and on card payments taken before it was captured.
+   */
+  stripe_payment_intent_id: string | null
+  /**
+   * Set only on a row created from a refund taken at Stripe, and unique, so a
+   * redelivered refund event cannot credit the same money twice. Null on manual
+   * refunds the committee records by hand.
+   */
+  stripe_refund_id: string | null
   recorded_by: string | null
   created_at: string
+}
+
+/**
+ * One Stripe webhook delivery. Written by the webhook endpoint alone, and read
+ * by nothing — it exists so a replayed event can be recognised as one.
+ */
+export type WebhookEvent = {
+  stripe_event_id: string
+  type: string
+  received_at: string
+  /** Null while the event is being handled, and again if the handler failed. */
+  processed_at: string | null
+  error: string | null
 }
 
 /** How a deadline's amount is worked out for a given member. */

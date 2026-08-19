@@ -44,7 +44,7 @@ in your Vercel project (**Production**, and **Preview** if you use it).
 | `SMTP_HOST` / `SMTP_PORT` | no | Default to `smtp.gmail.com` and `587`. Set for any other provider |
 | `SMTP_SECURE` | no | Implicit TLS. Inferred from the port (465 → on), so only set to override |
 | `EMAIL_FROM` | no | e.g. `HomeKin <you@gmail.com>`. The address **must** be `SMTP_USER` — Gmail rewrites or rejects anything else. Defaults to `SMTP_USER` |
-| `CRON_SECRET` | for reminders | Bearer token Vercel Cron sends to `/api/cron/reminders`. Without it the route refuses to run — and without the route, no deadline reminders go out |
+| `CRON_SECRET` | for reminders | Bearer token Vercel Cron sends to `/api/cron/reminders` and `/api/cron/reconcile-payments`. Without it both routes refuse to run — and without the first, no deadline reminders go out |
 | `CONTACT_EMAIL` | before publishing | The address printed on `/privacy` and `/terms`, and the one people report problems to. Unset, both pages render a visible "not ready to publish" banner and an obvious placeholder address rather than something plausible-looking. Deliberately **not** `NEXT_PUBLIC_` — a public variable is inlined at build time, so setting it in the hosting dashboard would change nothing until the next build |
 | `NEXT_PUBLIC_MAPBOX_TOKEN` | for maps | Public token, URL-restricted to your domain |
 | `MAPBOX_SECRET_TOKEN` | for maps | Secret token scoped to `geocoding`, for server-side address lookups |
@@ -155,6 +155,58 @@ any directory profile waiting for that address and redeems the invite code in on
 request. A used or expired link returns to `/login` saying so, with the magic-link
 option for getting a fresh one.
 
+### Card payments: what the webhook guarantees, and what checks it
+
+The Stripe webhook at `/api/webhooks/stripe` is the only thing that records a
+card payment. A browser coming back to the success page never marks anything
+paid — close the tab at the Stripe redirect and the payment still lands, because
+it was never the browser's to report.
+
+Being the only writer makes it a single point of failure, so two guards sit
+around it.
+
+**`webhook_events`** logs every delivery by its Stripe event id before any work
+starts. Stripe redelivers on any non-2xx and occasionally just because, and a
+handler that ran twice would credit the same money twice. The row is claimed at
+the top of the request and stamped `processed_at` at the bottom, so the table
+distinguishes *handled* from *started and never finished* — a distinction a
+plain "seen this id, return 200" would lose. A delivery that failed and recorded
+why is retryable as soon as Stripe sends it again; one that vanished without
+recording anything is taken over five minutes later, by which time no handler
+could still be running; one that completed is refused for good. The unique index on
+`payments.stripe_session_id` stays as the second line of defence, and the
+Checkout Session is created with an idempotency key derived from the balance's
+own state, so a member double-tapping **Pay** gets one session rather than two.
+
+Handled events: `checkout.session.completed` and
+`async_payment_succeeded` (record the payment), `checkout.session.expired` and
+`async_payment_failed` (let go of the dead session — a balance whose payment did
+not happen is simply unpaid, and there is deliberately no failure state to clear
+before trying again), `payment_intent.payment_failed` (logged, since a declined
+card is what people ask about) and `charge.refunded`.
+
+**`/api/cron/reconcile-payments`** runs nightly and catches what webhooks alone
+cannot: an event Stripe never managed to deliver, a handler that threw, a refund
+somebody issued from the Stripe dashboard. It nets each payment intent's ledger
+rows against what Stripe captured and refunded, and reports four kinds of
+disagreement — money taken but not recorded, money recorded but not taken, a
+charge that never succeeded, and an amount that no longer matches. Divergences
+go to the log with the payment intent id to look up; **nothing is repaired
+automatically**. A second thing writing money is the bug the payments ledger
+exists to prevent, and a job that quietly invents a payment to make the numbers
+agree is worse than one that says they do not.
+
+Charges are attributed by metadata carried down to the payment intent, so an
+unrelated charge on a Stripe account the family also uses for something else is
+counted rather than reported every night as a lost payment. Card payments taken
+before migration `036` have no payment intent recorded and are counted as
+unverifiable rather than guessed at.
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  http://localhost:3000/api/cron/reconcile-payments
+```
+
 ---
 
 ## Features
@@ -250,6 +302,12 @@ option for getting a fresh one.
 - A **payments ledger**: one row per payment, with balances derived from it.
   Partial payments, refunds and corrections all work, and a replayed Stripe
   webhook cannot double-count.
+- **Refunds issued at Stripe** come back into the ledger by themselves, as
+  ordinary negative rows, so a card refunded from the Stripe dashboard stops the
+  balance claiming money the family no longer has. Full or partial, and as many
+  partials as you like.
+- **Nightly reconciliation** compares the last 30 days of card payments against
+  Stripe and reports anything that does not agree — see below.
 - **Payments dashboard** (committee/admin): collected, outstanding, and every
   balance with its payment history.
 - **Emailed statements** on every change to a member's selections, and a receipt
@@ -376,6 +434,7 @@ Run them in the Supabase SQL editor (or `supabase db push` if you use the CLI).
 | `033_survey_delete` | Committee/admin can delete a survey; its responses cascade with it |
 | `034_delete_my_account` | `delete_my_account()` — the same work as `delete_member()`, authorized the other way round. Refuses only the last admin |
 | `035_reports_and_blocks` | `content_reports` and `member_blocks`, with restrictive policies that hide a blocked person in both directions |
+| `036_webhook_events_and_refunds` | `webhook_events` and its claim/complete functions; `payments.stripe_payment_intent_id` and `stripe_refund_id`, so a refund taken at Stripe lands in the ledger once |
 
 If a feature's button appears but fails when clicked, an unapplied migration is
 the first thing to check — the UI does not gate on schema version.
@@ -433,7 +492,8 @@ and no credentials needed.
 creates a temporary cluster, applies every migration from scratch, and asserts
 the behaviour of the SQL functions — merges, deletes, the payments ledger,
 unread counts, deadlines, photo social, households and attendees, the interest
-round, event modes and support needs — including the refusals: non-admins,
+round, event modes, support needs, and webhook idempotency and Stripe refunds —
+including the refusals: non-admins,
 merging a profile into itself, an admin deleting their own profile (which is
 what guarantees an admin always remains), and merging two members who both hold
 a balance for the same event. It never touches your Supabase project.
@@ -443,7 +503,7 @@ duplicate detection, birthday parsing, kinship naming, tree layout, budget and
 timeline generation, event pricing and capacity, the payment schedule, statement
 and reminder wording, interest summarising, date overlap, agenda ordering,
 survey and moderation rules, account-deletion wording, media limits, chat
-merge/dedupe and presence bucketing.
+merge/dedupe, presence bucketing and payment reconciliation.
 
 Two suites assert things that are otherwise only enforced somewhere expensive:
 `public-routes.test.ts` reads `src/proxy.ts` and fails if `/privacy`, `/terms` or
@@ -458,9 +518,11 @@ Hosted on Vercel. Beyond the environment variables above:
 
 1. **Stripe.** Activate the account, add a bank account for payouts, then create
    a **live-mode** webhook endpoint at `/api/webhooks/stripe` subscribed to
-   `checkout.session.completed`, `checkout.session.async_payment_succeeded` and
-   `checkout.session.async_payment_failed`. Copy that endpoint's signing secret —
-   the test-mode one will not work.
+   `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+   `checkout.session.async_payment_failed`, `checkout.session.expired`,
+   `payment_intent.payment_failed` and `charge.refunded`. Copy that endpoint's
+   signing secret — the test-mode one will not work. One endpoint handles
+   everything; a second one would deliver the same events twice.
 2. **Supabase.** Apply any outstanding migrations, configure SMTP, and
    allow-list your production URL for auth redirects.
 3. **Set `CONTACT_EMAIL`** to an address somebody reads. Until you do, `/privacy`
@@ -477,7 +539,8 @@ src/
                      reunions, guides, account, admin
   app/(auth)/        login and signup
   app/api/           webhooks, RSVP links, chat polling, presence, cron
-                     reminders, checkout, CSV template, auth callbacks
+                     reminders and payment reconciliation, checkout, CSV
+                     template, auth callbacks
   app/manifest.ts    PWA manifest
   app/privacy|terms|goodbye|offline   public pages, outside the auth redirect
   proxy.ts           session refresh and the public-route list
@@ -486,7 +549,7 @@ src/
   lib/               pure logic (csv, xlsx, import, merge, kinship, tree
                      layout, chat, presence, birthday, budget, timeline,
                      agenda, interest, date overlap, pricing, payment
-                     schedule, moderation, media, legal)
+                     schedule, reconciliation, moderation, media, legal)
   lib/actions/       server actions, grouped by feature
   lib/guides/        guide registry and section metadata
   types/database.ts  hand-maintained row types
