@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, Calendar, Users, DollarSign } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
-import { updateReunion } from '@/lib/actions/reunions'
+import { setReunionPhase, updateReunion } from '@/lib/actions/reunions'
+import { REUNION_PHASES, phaseCopy, type ReunionPhase } from '@/lib/reunion-phase'
 import { ActionForm } from '@/components/action-form'
 import { DeleteReunion } from './delete-reunion'
 
@@ -114,6 +115,45 @@ export default async function ManagePage({ params }: ManagePageProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Stage. Drives what the reunion page leads with for everyone; it never
+          locks anything, so going back a stage is always safe. */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-base">Stage</CardTitle>
+          <CardDescription>
+            Decides what the reunion page puts first for the family. Nothing is locked
+            by it — signups and payments stay open in every stage.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ActionForm
+            action={setReunionPhase.bind(null, id, reunion.status)}
+            submitLabel="Change stage"
+            pendingLabel="Changing…"
+            errorTitle="The stage was not changed"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="phase">Current stage</Label>
+              <select
+                id="phase"
+                name="phase"
+                defaultValue={reunion.status}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                {REUNION_PHASES.map((p, i) => (
+                  <option key={p} value={p}>
+                    {i + 1}. {phaseCopy(p).label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Family members currently see: {phaseCopy(reunion.status as ReunionPhase).memberSummary}
+              </p>
+            </div>
+          </ActionForm>
+        </CardContent>
+      </Card>
 
       {/* Edit reunion details */}
       <Card className="mb-6">

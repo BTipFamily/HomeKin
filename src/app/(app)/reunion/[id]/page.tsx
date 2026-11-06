@@ -4,8 +4,37 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Pin, Trash2, Calendar, Camera, Users, MessageCircle, ClipboardList, DollarSign, ListChecks, Wallet, Settings, FileText, HeartHandshake, CalendarDays, Compass } from 'lucide-react'
-import { formatDate } from '@/lib/utils'
+import {
+  ArrowRight,
+  Pin,
+  Trash2,
+  Calendar,
+  Camera,
+  Users,
+  MessageCircle,
+  ClipboardList,
+  DollarSign,
+  ListChecks,
+  MapPin,
+  Wallet,
+  Settings,
+  FileText,
+  HeartHandshake,
+  CalendarDays,
+  Compass,
+  type LucideIcon,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { summarizeBalances } from '@/lib/balance-summary'
+import { formatDateRange, hubHero } from '@/lib/reunion-hub'
+import {
+  REUNION_PHASES,
+  nextPhase,
+  phaseCopy,
+  phaseIndex,
+  type ReunionPhase,
+} from '@/lib/reunion-phase'
+import { setReunionPhase } from '@/lib/actions/reunions'
 import { deleteAnnouncement } from '@/lib/actions/announcements'
 import { ActionButton } from '@/components/action-button'
 import { AnnouncementForm } from './announcement-form'
@@ -77,110 +106,138 @@ export default async function ReunionPage({ params }: ReunionPageProps) {
   // is marked read separately, when the chat itself is opened.
   if (unreadPosts > 0) await markChannelRead(id, null, 'announcements')
 
+  // What the hero leads with: whether they have answered the interest form, and
+  // what they still owe. Both are this member's own rows, so RLS is no obstacle.
+  const { data: myInterest } = await supabase
+    .from('interest_responses')
+    .select('id')
+    .eq('reunion_id', id)
+    .eq('member_id', member.id)
+    .maybeSingle()
+
+  const { data: myBalances } = await supabase
+    .from('balances')
+    .select('sub_event_id, amount_owed, amount_paid, status')
+    .eq('reunion_id', id)
+    .eq('member_id', member.id)
+
+  const phase = reunion.status as ReunionPhase
+  const { outstanding } = summarizeBalances(myBalances ?? [])
+  const hero = hubHero({
+    phase,
+    canManage,
+    hasAnsweredInterest: Boolean(myInterest),
+    outstanding,
+  })
+  const next = nextPhase(phase)
+  const dates = formatDateRange(reunion.start_date, reunion.end_date)
+
+  // Two groups rather than one grid of thirteen: what the family comes here for,
+  // and the tools the committee plans with. Timeline and the estimator are open
+  // to everyone read-only, so they sit with planning for members too.
+  const familyTiles: Tile[] = [
+    { path: 'events', label: `Events (${eventCount ?? 0})`, icon: Calendar },
+    { path: 'signups', label: 'Signups & Pay', icon: Users },
+    { path: 'agenda', label: 'Agenda', icon: CalendarDays },
+    { path: 'chat', label: 'Chat', icon: MessageCircle, badge: unreadChat },
+    { path: 'photos', label: `Photos (${photoCount ?? 0})`, icon: Camera },
+    { path: 'surveys', label: `Surveys (${surveyCount ?? 0})`, icon: ClipboardList },
+    { path: 'interest', label: 'Interest', icon: HeartHandshake },
+  ]
+  const planningTiles: Tile[] = [
+    ...(canManage ? [{ path: 'planning', label: 'Planning', icon: Compass }] : []),
+    { path: 'timeline', label: 'Timeline', icon: ListChecks },
+    { path: 'budget-estimator', label: 'Budget Estimator', icon: Wallet },
+    ...(canManage
+      ? [
+          { path: 'budget', label: 'Payments', icon: DollarSign },
+          { path: 'report', label: 'Report', icon: FileText },
+          { path: 'manage', label: 'Manage', icon: Settings },
+        ]
+      : []),
+  ]
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-      {/* Reunion header */}
+      {/* Reunion header — when and where come first, because that is the first
+          thing anyone asks about a reunion. */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold">{reunion.name}</h1>
+        {(dates || reunion.location_name) && (
+          <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            {dates && (
+              <span className="flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5" aria-hidden />
+                {dates}
+              </span>
+            )}
+            {reunion.location_name && (
+              <span className="flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5" aria-hidden />
+                {reunion.location_name}
+              </span>
+            )}
+          </p>
+        )}
         {reunion.description && (
-          <p className="mt-1 text-muted-foreground">{reunion.description}</p>
+          <p className="mt-2 text-muted-foreground">{reunion.description}</p>
         )}
       </div>
 
-      {/* Quick nav */}
-      <div className="mb-8 grid grid-cols-3 gap-3">
-        <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
-          <Link href={`/reunion/${id}/events`}>
-            <Calendar className="h-5 w-5" />
-            <span className="text-xs">Events ({eventCount ?? 0})</span>
-          </Link>
-        </Button>
-        <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
-          <Link href={`/reunion/${id}/agenda`}>
-            <CalendarDays className="h-5 w-5" />
-            <span className="text-xs">Agenda</span>
-          </Link>
-        </Button>
-        <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
-          <Link href={`/reunion/${id}/interest`}>
-            <HeartHandshake className="h-5 w-5" />
-            <span className="text-xs">Interest</span>
-          </Link>
-        </Button>
-        <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
-          <Link href={`/reunion/${id}/signups`}>
-            <Users className="h-5 w-5" />
-            <span className="text-xs">Signups & Pay</span>
-          </Link>
-        </Button>
-        <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
-          <Link href={`/reunion/${id}/chat`} className="relative">
-            <MessageCircle className="h-5 w-5" />
-            <span className="text-xs">Chat</span>
-            {unreadChat > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
-                {unreadChat > 99 ? '99+' : unreadChat}
-              </span>
-            )}
-          </Link>
-        </Button>
-        <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
-          <Link href={`/reunion/${id}/photos`}>
-            <Camera className="h-5 w-5" />
-            <span className="text-xs">Photos ({photoCount ?? 0})</span>
-          </Link>
-        </Button>
-        <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
-          <Link href={`/reunion/${id}/surveys`}>
-            <ClipboardList className="h-5 w-5" />
-            <span className="text-xs">Surveys ({surveyCount ?? 0})</span>
-          </Link>
-        </Button>
-        <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
-          <Link href={`/reunion/${id}/timeline`}>
-            <ListChecks className="h-5 w-5" />
-            <span className="text-xs">Timeline</span>
-          </Link>
-        </Button>
-        <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
-          <Link href={`/reunion/${id}/budget-estimator`}>
-            <Wallet className="h-5 w-5" />
-            <span className="text-xs">Budget Estimator</span>
-          </Link>
-        </Button>
-        {canManage && (
-          <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
-            <Link href={`/reunion/${id}/planning`}>
-              <Compass className="h-5 w-5" />
-              <span className="text-xs">Planning</span>
-            </Link>
-          </Button>
-        )}
-        {canManage && (
-          <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
-            <Link href={`/reunion/${id}/budget`}>
-              <DollarSign className="h-5 w-5" />
-              <span className="text-xs">Payments</span>
-            </Link>
-          </Button>
-        )}
-        {canManage && (
-          <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
-            <Link href={`/reunion/${id}/report`}>
-              <FileText className="h-5 w-5" />
-              <span className="text-xs">Report</span>
-            </Link>
-          </Button>
-        )}
-        {canManage && (
-          <Button asChild variant="outline" className="flex-col h-auto py-3 gap-1">
-            <Link href={`/reunion/${id}/manage`}>
-              <Settings className="h-5 w-5" />
-              <span className="text-xs">Manage</span>
-            </Link>
-          </Button>
-        )}
-      </div>
+      {/* Hero: the one thing this person is most likely here to do. */}
+      <Card className="mb-8 border-primary/30 bg-primary/5">
+        <CardContent className="pt-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">{hero.phaseLabel}</Badge>
+            <span className="text-xs text-muted-foreground">
+              Stage {phaseIndex(phase) + 1} of {REUNION_PHASES.length}
+            </span>
+          </div>
+          <p className="mt-3 text-base font-medium">{hero.summary}</p>
+          {(hero.primary || hero.secondary) && (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              {hero.primary && (
+                <Button asChild size="lg">
+                  <Link href={hubHref(id, hero.primary.path)}>
+                    {hero.primary.label}
+                    <ArrowRight className="ml-1.5 h-4 w-4" />
+                  </Link>
+                </Button>
+              )}
+              {hero.secondary && (
+                <Button asChild variant="outline">
+                  <Link href={hubHref(id, hero.secondary.path)}>{hero.secondary.label}</Link>
+                </Button>
+              )}
+            </div>
+          )}
+          {canManage && next && (
+            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-primary/20 pt-3 text-sm text-muted-foreground">
+              <span>Ready for the next stage?</span>
+              <ActionButton
+                action={setReunionPhase.bind(null, id, next)}
+                label={`Move to ${phaseCopy(next).label}`}
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-primary"
+                confirm={`Move this reunion to “${phaseCopy(next).label}”? The family will see: ${phaseCopy(next).memberSummary} You can change it back from Manage.`}
+              >
+                Move to {phaseCopy(next).label}
+                <ArrowRight className="ml-1 h-3.5 w-3.5" />
+              </ActionButton>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <TileGroup reunionId={id} title="Your reunion" tiles={familyTiles} />
+      <TileGroup
+        reunionId={id}
+        title={canManage ? 'Committee tools' : 'Planning'}
+        description={canManage ? undefined : 'What the committee is working from.'}
+        tiles={planningTiles}
+        muted
+      />
 
       {/* Post announcement form (committee/admin) */}
       {canManage && (
@@ -245,5 +302,60 @@ export default async function ReunionPage({ params }: ReunionPageProps) {
         )}
       </div>
     </div>
+  )
+}
+
+type Tile = { path: string; label: string; icon: LucideIcon; badge?: number }
+
+function hubHref(reunionId: string, path: string): string {
+  return path ? `/reunion/${reunionId}/${path}` : `/reunion/${reunionId}`
+}
+
+/**
+ * One labelled group of section links. `muted` sets the committee's tools apart
+ * from the family's, so nobody has to read every label to find what is theirs.
+ */
+function TileGroup({
+  reunionId,
+  title,
+  description,
+  tiles,
+  muted = false,
+}: {
+  reunionId: string
+  title: string
+  description?: string
+  tiles: Tile[]
+  muted?: boolean
+}) {
+  if (tiles.length === 0) return null
+  return (
+    <section className="mb-8">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </h2>
+      {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {tiles.map(({ path, label, icon: Icon, badge }) => (
+          <Button
+            key={path}
+            asChild
+            variant="outline"
+            className={cn('h-auto flex-col gap-1.5 py-4', muted && 'bg-muted/40')}
+          >
+            <Link href={hubHref(reunionId, path)} className="relative">
+              <Icon className="h-5 w-5" aria-hidden />
+              <span className="text-sm">{label}</span>
+              {badge ? (
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
+                  <span className="sr-only">Unread: </span>
+                  {badge > 99 ? '99+' : badge}
+                </span>
+              ) : null}
+            </Link>
+          </Button>
+        ))}
+      </div>
+    </section>
   )
 }

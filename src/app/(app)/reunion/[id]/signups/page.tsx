@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { ArrowLeft, Calendar, DollarSign, Users, CheckCircle, Clock, AlertCircle } from 'lucide-react'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
+import { summarizeBalances } from '@/lib/balance-summary'
 import PayButton from './pay-button'
 import ManualPayForm from './manual-pay-form'
 
@@ -53,11 +54,6 @@ export default async function SignupsPage({ params, searchParams }: SignupsPageP
 
   const mySignups = signups?.filter((s) => reunionEventIdSet.has(s.sub_event_id)) ?? []
 
-  const estimatedTotal = mySignups.reduce((sum, s) => {
-    const event = (s as any).sub_event
-    return event ? sum + event.cost_per_person * s.headcount : sum
-  }, 0)
-
   // Load real balances
   const { data: balances } = await supabase
     .from('balances')
@@ -66,6 +62,11 @@ export default async function SignupsPage({ params, searchParams }: SignupsPageP
     .eq('reunion_id', id)
 
   const balanceBySubEvent = new Map(balances?.map((b) => [b.sub_event_id, b]) ?? [])
+
+  // From the balances, not the list prices: group discounts, guests added after
+  // paying and refunds all live there. The old figure was cost × headcount, so a
+  // family that had paid in full was still shown its whole bill as "Total Owed".
+  const summary = summarizeBalances(balances ?? [])
 
   const canManage = ['committee', 'admin'].includes(member.role)
 
@@ -119,8 +120,13 @@ export default async function SignupsPage({ params, searchParams }: SignupsPageP
           {mySignups.map((signup) => {
             const event = (signup as any).sub_event
             if (!event) return null
-            const subtotal = event.cost_per_person * signup.headcount
             const balance = balanceBySubEvent.get(signup.sub_event_id)
+            // What this signup is actually billed, discounts included. Falls back
+            // to the list price only before a balance exists.
+            const subtotal = balance
+              ? Number(balance.amount_owed)
+              : event.cost_per_person * signup.headcount
+            const perPerson = signup.headcount > 0 ? subtotal / signup.headcount : 0
 
             return (
               <Card key={signup.id}>
@@ -145,18 +151,18 @@ export default async function SignupsPage({ params, searchParams }: SignupsPageP
                         )}
                       </p>
                     </div>
-                    {event.cost_per_person > 0 && (
+                    {subtotal > 0 && (
                       <div className="text-right shrink-0">
                         <p className="font-semibold">{formatCurrency(subtotal)}</p>
                         <p className="text-xs text-muted-foreground">
-                          {formatCurrency(event.cost_per_person)} × {signup.headcount}
+                          {formatCurrency(perPerson)} × {signup.headcount}
                         </p>
                       </div>
                     )}
                   </div>
 
                   {/* Balance / payment status */}
-                  {balance && event.cost_per_person > 0 && (
+                  {balance && (Number(balance.amount_owed) > 0 || Number(balance.amount_paid) > 0) && (
                     <div className="mt-3 rounded-md border p-3">
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <span className="text-sm font-medium">Payment</span>
@@ -205,21 +211,53 @@ export default async function SignupsPage({ params, searchParams }: SignupsPageP
             )
           })}
 
-          {estimatedTotal > 0 && (
-            <Card className="border-primary/20 bg-primary/5">
+          {(summary.owed > 0 || summary.paid > 0) && (
+            <Card
+              className={
+                summary.outstanding > 0
+                  ? 'border-primary/20 bg-primary/5'
+                  : 'border-success-border bg-success-surface'
+              }
+            >
               <CardContent className="py-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-primary" />
-                    <span className="font-medium">Total Owed</span>
+                    {summary.outstanding > 0 ? (
+                      <DollarSign className="h-4 w-4 text-primary" aria-hidden />
+                    ) : (
+                      <CheckCircle className="h-4 w-4 text-success-foreground" aria-hidden />
+                    )}
+                    <span className="font-medium">
+                      {summary.outstanding > 0 ? 'Still to pay' : 'All paid up'}
+                    </span>
                   </div>
-                  <span className="text-xl font-bold text-primary">
-                    {formatCurrency(estimatedTotal)}
+                  <span
+                    className={`text-xl font-bold ${
+                      summary.outstanding > 0 ? 'text-primary' : 'text-success-foreground'
+                    }`}
+                  >
+                    {formatCurrency(summary.outstanding)}
                   </span>
                 </div>
-                {balances && balances.length > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Paid {formatCurrency(summary.paid)} of {formatCurrency(summary.owed)}
+                  {summary.unattachedOwed > 0 && (
+                    <>
+                      {' '}
+                      &middot; includes {formatCurrency(summary.unattachedOwed)} not tied to an
+                      event
+                    </>
+                  )}
+                </p>
+                {summary.awaitingConfirmation && (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Paid so far: {formatCurrency(balances.reduce((s, b) => s + b.amount_paid, 0))}
+                    A payment you reported is not counted until the committee confirms it.
+                  </p>
+                )}
+                {summary.credit > 0 && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    You have paid {formatCurrency(summary.credit)} more than you owe — ask the
+                    committee about a refund.
                   </p>
                 )}
               </CardContent>
