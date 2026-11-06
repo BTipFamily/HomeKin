@@ -1,5 +1,25 @@
 @import "tailwindcss";
 
+/* Room for a reunion's own navigation — the bottom tab bar on a phone, the tab
+   row under the header on desktop — and its height as a variable, for pages
+   that fill the screen (see .reunion-fill). Set by reunion/[id]/layout.tsx. */
+.reunion-shell {
+  --reunion-chrome: calc(4rem + env(safe-area-inset-bottom));
+  padding-bottom: var(--reunion-chrome);
+}
+@media (min-width: 48rem) {
+  .reunion-shell {
+    --reunion-chrome: 3rem;
+    padding-bottom: 0;
+  }
+}
+
+/* Exactly the space left under the top bar (4rem) and the reunion's nav. */
+.reunion-fill {
+  height: calc(100vh - 4rem - var(--reunion-chrome, 0px));
+  height: calc(100dvh - 4rem - var(--reunion-chrome, 0px));
+}
+
 /* ============================================================
    Design tokens — shadcn/ui structure, warm palette
 

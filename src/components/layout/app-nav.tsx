@@ -48,9 +48,8 @@ export function AppNav({ member, reunions, currentReunionId }: AppNavProps) {
   }
 
   // currentReunionId is never actually passed in by any layout, so fall
-  // back to parsing it out of the URL — this is what lets the reunion
-  // sub-nav (Events, Photos, Map, Manage, etc.) appear at all while on a
-  // /reunion/[id]/... page.
+  // back to parsing it out of the URL — this is what names the current
+  // reunion on the switcher while on a /reunion/[id]/... page.
   const pathReunionId = pathname.match(/^\/reunion\/([^/]+)/)?.[1]
   const currentReunion = reunions.find((r) => r.id === (currentReunionId ?? pathReunionId))
 
@@ -60,24 +59,10 @@ export function AppNav({ member, reunions, currentReunionId }: AppNavProps) {
     { href: '/family-tree', label: 'Family Tree', icon: GitBranch },
   ]
 
-  const reunionLinks = currentReunion
-    ? [
-        { href: `/reunion/${currentReunion.id}`, label: 'Home' },
-        { href: `/reunion/${currentReunion.id}/events`, label: 'Events' },
-        { href: `/reunion/${currentReunion.id}/signups`, label: 'Signups' },
-        { href: `/reunion/${currentReunion.id}/chat`, label: 'Chat' },
-        { href: `/reunion/${currentReunion.id}/photos`, label: 'Photos' },
-        { href: `/reunion/${currentReunion.id}/map`, label: 'Map' },
-        { href: `/reunion/${currentReunion.id}/surveys`, label: 'Surveys' },
-        ...(member.role !== 'member'
-          ? [
-              { href: `/reunion/${currentReunion.id}/invitations`, label: 'Invitations' },
-              { href: `/reunion/${currentReunion.id}/budget`, label: 'Budget' },
-              { href: `/reunion/${currentReunion.id}/manage`, label: 'Manage' },
-            ]
-          : []),
-      ]
-    : []
+  // A reunion's own sections are not up here any more: they live in the
+  // reunion layout (components/layout/reunion-nav.tsx) as a tab row on desktop
+  // and a bottom bar on a phone. This bar keeps what is global, plus the switcher.
+  const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -96,7 +81,7 @@ export function AppNav({ member, reunions, currentReunionId }: AppNavProps) {
                 href={href}
                 className={cn(
                   'flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                  pathname === href || pathname.startsWith(href + '/')
+                  isActive(href)
                     ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                 )}
@@ -135,21 +120,6 @@ export function AppNav({ member, reunions, currentReunionId }: AppNavProps) {
               </DropdownMenu>
             )}
 
-            {/* Reunion sub-nav */}
-            {reunionLinks.map(({ href, label }) => (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  'rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                  pathname === href
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                )}
-              >
-                {label}
-              </Link>
-            ))}
           </nav>
         </div>
 
@@ -227,6 +197,9 @@ export function AppNav({ member, reunions, currentReunionId }: AppNavProps) {
             size="icon"
             className="md:hidden"
             onClick={() => setMobileOpen(!mobileOpen)}
+            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-menu"
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
@@ -235,7 +208,7 @@ export function AppNav({ member, reunions, currentReunionId }: AppNavProps) {
 
       {/* Mobile nav */}
       {mobileOpen && (
-        <nav className="border-t md:hidden">
+        <nav id="mobile-menu" aria-label="Main" className="border-t md:hidden">
           <div className="space-y-1 px-4 py-3">
             {navLinks.map(({ href, label, icon: Icon }) => (
               <Link
@@ -243,8 +216,8 @@ export function AppNav({ member, reunions, currentReunionId }: AppNavProps) {
                 href={href}
                 onClick={() => setMobileOpen(false)}
                 className={cn(
-                  'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium',
-                  pathname === href
+                  'flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium',
+                  isActive(href)
                     ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:bg-accent'
                 )}
@@ -253,33 +226,46 @@ export function AppNav({ member, reunions, currentReunionId }: AppNavProps) {
                 {label}
               </Link>
             ))}
-            {reunionLinks.length > 0 && (
+            {/* The reunion switcher, which used to be desktop-only — on a phone
+                the only way to another reunion was back via the dashboard. */}
+            {reunions.length > 0 && (
               <>
-                <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {currentReunion?.name}
+                <div className="px-3 pb-1 pt-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Reunions
                 </div>
-                {reunionLinks.map(({ href, label }) => (
+                {reunions.map((r) => (
                   <Link
-                    key={href}
-                    href={href}
+                    key={r.id}
+                    href={`/reunion/${r.id}`}
                     onClick={() => setMobileOpen(false)}
+                    aria-current={r.id === currentReunion?.id ? 'page' : undefined}
                     className={cn(
-                      'block rounded-md px-3 py-2 text-sm font-medium',
-                      pathname === href
+                      'flex min-h-11 items-center rounded-md px-3 py-2 text-sm font-medium',
+                      r.id === currentReunion?.id
                         ? 'bg-primary/10 text-primary'
                         : 'text-muted-foreground hover:bg-accent'
                     )}
                   >
-                    {label}
+                    {r.name} ({r.year})
                   </Link>
                 ))}
+                {member.role !== 'member' && (
+                  <Link
+                    href="/reunion/new"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex min-h-11 items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent"
+                  >
+                    + New Reunion
+                  </Link>
+                )}
+                <div className="my-2 border-t" />
               </>
             )}
             <Link
               href="/guides"
               onClick={() => setMobileOpen(false)}
               className={cn(
-                'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium',
+                'flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium',
                 pathname.startsWith('/guides')
                   ? 'bg-primary/10 text-primary'
                   : 'text-muted-foreground hover:bg-accent'
@@ -290,7 +276,7 @@ export function AppNav({ member, reunions, currentReunionId }: AppNavProps) {
             </Link>
             <button
               onClick={handleSignOut}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent"
+              className="flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent"
             >
               <LogOut className="h-4 w-4" />
               Sign Out

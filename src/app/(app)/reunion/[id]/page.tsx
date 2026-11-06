@@ -4,26 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-  ArrowRight,
-  Pin,
-  Trash2,
-  Calendar,
-  Camera,
-  Users,
-  MessageCircle,
-  ClipboardList,
-  DollarSign,
-  ListChecks,
-  MapPin,
-  Wallet,
-  Settings,
-  FileText,
-  HeartHandshake,
-  CalendarDays,
-  Compass,
-  type LucideIcon,
-} from 'lucide-react'
+import { ArrowRight, Pin, Trash2, Calendar, MapPin } from 'lucide-react'
+import { reunionSections, sectionHref, type ReunionSection } from '@/lib/reunion-nav'
 import { cn } from '@/lib/utils'
 import { summarizeBalances } from '@/lib/balance-summary'
 import { formatDateRange, hubHero } from '@/lib/reunion-hub'
@@ -133,29 +115,23 @@ export default async function ReunionPage({ params }: ReunionPageProps) {
   const dates = formatDateRange(reunion.start_date, reunion.end_date)
 
   // Two groups rather than one grid of thirteen: what the family comes here for,
-  // and the tools the committee plans with. Timeline and the estimator are open
-  // to everyone read-only, so they sit with planning for members too.
-  const familyTiles: Tile[] = [
-    { path: 'events', label: `Events (${eventCount ?? 0})`, icon: Calendar },
-    { path: 'signups', label: 'Signups & Pay', icon: Users },
-    { path: 'agenda', label: 'Agenda', icon: CalendarDays },
-    { path: 'chat', label: 'Chat', icon: MessageCircle, badge: unreadChat },
-    { path: 'photos', label: `Photos (${photoCount ?? 0})`, icon: Camera },
-    { path: 'surveys', label: `Surveys (${surveyCount ?? 0})`, icon: ClipboardList },
-    { path: 'interest', label: 'Interest', icon: HeartHandshake },
-  ]
-  const planningTiles: Tile[] = [
-    ...(canManage ? [{ path: 'planning', label: 'Planning', icon: Compass }] : []),
-    { path: 'timeline', label: 'Timeline', icon: ListChecks },
-    { path: 'budget-estimator', label: 'Budget Estimator', icon: Wallet },
-    ...(canManage
-      ? [
-          { path: 'budget', label: 'Payments', icon: DollarSign },
-          { path: 'report', label: 'Report', icon: FileText },
-          { path: 'manage', label: 'Manage', icon: Settings },
-        ]
-      : []),
-  ]
+  // and the tools the committee plans with. Same list, same names, as the
+  // reunion's tab row and bottom bar (lib/reunion-nav.ts); only the counts are
+  // added here.
+  const counts: Record<string, number | null> = {
+    events: eventCount,
+    photos: photoCount,
+    surveys: surveyCount,
+  }
+  const tiles: Tile[] = reunionSections(canManage)
+    .filter((s) => s.path !== '')
+    .map((s) => ({
+      ...s,
+      label: s.path in counts ? `${s.label} (${counts[s.path] ?? 0})` : s.label,
+      badge: s.path === 'chat' ? unreadChat : undefined,
+    }))
+  const familyTiles = tiles.filter((t) => t.group === 'family')
+  const planningTiles = tiles.filter((t) => t.group === 'planning')
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
@@ -305,11 +281,9 @@ export default async function ReunionPage({ params }: ReunionPageProps) {
   )
 }
 
-type Tile = { path: string; label: string; icon: LucideIcon; badge?: number }
+type Tile = ReunionSection & { badge?: number }
 
-function hubHref(reunionId: string, path: string): string {
-  return path ? `/reunion/${reunionId}/${path}` : `/reunion/${reunionId}`
-}
+const hubHref = sectionHref
 
 /**
  * One labelled group of section links. `muted` sets the committee's tools apart
