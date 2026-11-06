@@ -66,7 +66,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     .order('name')
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
+    <div className="reunion-fill flex flex-col">
       <div className="border-b px-4 py-3 flex items-center gap-3">
         <Button variant="ghost" size="icon" asChild className="h-8 w-8">
           <Link href={subEventId ? `/reunion/${id}/events/${subEventId}` : `/reunion/${id}`}>

@@ -1,12 +1,12 @@
 import { Badge } from '@/components/ui/badge'
 import { GuideNote, H2, List, P, Screen, UI } from '@/components/guides'
-import { Home, Users, GitBranch, BookOpen } from 'lucide-react'
+import { Home, Users, GitBranch, BookOpen, LayoutGrid, Calendar, MessageCircle, Camera, MoreHorizontal } from 'lucide-react'
 import type { GuideMeta } from '@/lib/guides/types'
 
 export const meta: GuideMeta = {
   slug: 'finding-your-way-around',
   title: 'Finding your way around',
-  summary: 'What lives where — the top bar, the reunion switcher, and your account menu.',
+  summary: 'What lives where — the top bar, a reunion’s own sections, and your account menu.',
   section: 'getting-started',
 }
 
@@ -59,12 +59,25 @@ export default function Guide() {
       <H2>The reunion switcher</H2>
       <P>
         Once a reunion exists, a dropdown appears next to those three showing which one you are
-        looking at. Everything to the right of it — Events, Signups, Chat, Photos, Map, Surveys —
-        belongs to <em>that</em> reunion. Switch reunions and those links follow you across.
+        looking at. Pick another and you go straight to its Overview.
+      </P>
+
+      <H2>Inside a reunion</H2>
+      <P>
+        A reunion&apos;s own sections — Overview, Events, Signups &amp; Pay, Agenda, Chat, Photos,
+        Map, Surveys, Interest — sit in a row of tabs just under the top bar. The tab you are on
+        is highlighted, including on the pages inside it, so an event&apos;s own page still shows{' '}
+        <UI>Events</UI>.
       </P>
       <P>
-        If you are on the committee you also see Invitations, Budget and Manage in that row.
-        Members don&apos;t, which is the quickest way to tell what your role is.
+        Committee members also see their tools at the end of that row, after a divider:
+        Planning, Timeline, Budget Estimator, Invitations, Payments, Report and Manage. Members
+        see Timeline and Budget Estimator to read, but not the rest.
+      </P>
+      <P>
+        The <UI>Overview</UI> page leads with whatever the reunion needs from you right now —
+        telling the committee whether you can come, paying what is still due, or checking the
+        schedule — with every section laid out underneath.
       </P>
 
       <H2>The top right</H2>
@@ -80,10 +93,35 @@ export default function Guide() {
 
       <GuideNote title="On a phone">
         <p>
-          The nav collapses behind the ☰ button next to your photo. Everything is still there —
-          the same links, in the same order, in a panel that drops down.
+          Inside a reunion, the sections move to a bar along the bottom of the screen, where your
+          thumb is: Overview, Events, Chat, Photos and More. <UI>More</UI> opens everything else,
+          and a list of reunions to switch between.
+        </p>
+        <p>
+          The ☰ button next to your photo holds Dashboard, Directory, Family Tree, the list of
+          reunions, the guides and Sign Out.
         </p>
       </GuideNote>
+
+      <Screen label="The bottom bar on a phone">
+        <div className="mx-auto grid max-w-sm grid-cols-5 text-xs font-medium text-muted-foreground">
+          <span className="flex flex-col items-center gap-1 text-primary">
+            <LayoutGrid className="h-5 w-5" /> Overview
+          </span>
+          <span className="flex flex-col items-center gap-1">
+            <Calendar className="h-5 w-5" /> Events
+          </span>
+          <span className="flex flex-col items-center gap-1">
+            <MessageCircle className="h-5 w-5" /> Chat
+          </span>
+          <span className="flex flex-col items-center gap-1">
+            <Camera className="h-5 w-5" /> Photos
+          </span>
+          <span className="flex flex-col items-center gap-1">
+            <MoreHorizontal className="h-5 w-5" /> More
+          </span>
+        </div>
+      </Screen>
 
       <H2>Badges you will see</H2>
       <P>

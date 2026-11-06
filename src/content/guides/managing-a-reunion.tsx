@@ -7,7 +7,7 @@ import type { GuideMeta } from '@/lib/guides/types'
 export const meta: GuideMeta = {
   slug: 'managing-a-reunion',
   title: 'Reunion details, and deleting a reunion',
-  summary: 'Change the name, dates, description or location — or remove the whole thing.',
+  summary: 'Change the stage, name, dates, description or location — or remove the whole thing.',
   section: 'planning',
   role: 'committee',
 }
@@ -16,7 +16,7 @@ export default function Guide() {
   return (
     <>
       <P>
-        <UI>Manage</UI> in the reunion nav is where the reunion&apos;s own details live, as
+        <UI>Manage</UI>, among the committee tools in the reunion&apos;s navigation, is where the reunion&apos;s own details live, as
         opposed to its events or its money. Committee members and admins can reach it.
       </P>
 
@@ -54,10 +54,31 @@ export default function Guide() {
         </p>
       </GuideNote>
 
+      <H2>The stage</H2>
+      <P>
+        Every reunion is at one of six stages: <UI>Draft</UI>, <UI>Gathering interest</UI>,{' '}
+        <UI>Planning</UI>, <UI>Registration open</UI>, <UI>Finalized</UI> and{' '}
+        <UI>Completed</UI>. The stage decides what the reunion&apos;s Overview page puts first for
+        everyone — the interest form while you are gathering interest, signing up and paying once
+        registration is open, the schedule once it is finalized, the photos afterwards.
+      </P>
+      <P>
+        To move on, press <UI>Move to …</UI> at the bottom of the card on the Overview page. To
+        go back a stage, or jump to any stage, use the <UI>Stage</UI> card at the top of Manage.
+      </P>
+      <GuideNote variant="tip" title="The stage never locks anything">
+        <p>
+          Signups and payments stay open in every stage. A family asked for a deposit while you
+          are still planning can still pay it — the stage only changes what the page suggests.
+        </p>
+      </GuideNote>
+
       <H2>The stat cards</H2>
       <P>
-        Events, signups and expected revenue at a glance. Expected revenue is what people{' '}
-        <em>owe</em> based on signups, not what has come in — the Payments page has that.
+        Events, signups and money at a glance. <UI>Billed</UI> is what everyone has been
+        charged through HomeKin — group discounts included, events people book directly with the
+        venue left out — with how much of it has
+        been collected and how much is still due underneath. The Payments page has the detail.
       </P>
 
       <H2>Deleting a reunion</H2>

@@ -98,8 +98,9 @@ export default function Guide() {
           committee
         </Badge>{' '}
         <Badge className="border-transparent bg-muted text-muted-foreground">member</Badge>. The
-        quickest check for your own is the reunion nav: if you can see Budget and Manage, you are
-        at least committee.
+        quickest check for your own is a reunion&apos;s Overview page: if it has a{' '}
+        <UI>Committee tools</UI> section with Payments and Manage in it, you are at least
+        committee.
       </P>
     </>
   )
