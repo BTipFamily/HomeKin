@@ -75,8 +75,10 @@ export default function Guide() {
 
       <H2>The stat cards</H2>
       <P>
-        Events, signups and expected revenue at a glance. Expected revenue is what people{' '}
-        <em>owe</em> based on signups, not what has come in — the Payments page has that.
+        Events, signups and money at a glance. <UI>Billed</UI> is what everyone has been
+        charged through HomeKin — group discounts included, events people book directly with the
+        venue left out — with how much of it has
+        been collected and how much is still due underneath. The Payments page has the detail.
       </P>
 
       <H2>Deleting a reunion</H2>
