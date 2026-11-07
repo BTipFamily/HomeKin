@@ -40,6 +40,12 @@ export default function Guide() {
             If you never set one you get your initials on a coloured circle, which is perfectly
             fine and is what most of the directory looks like.
           </p>
+          <p>
+            If you see <UI>Use my Facebook photo</UI> beside it, that copies your Facebook profile
+            picture instead. You sign in with Facebook once, the picture is saved to HomeKin, and
+            Facebook is disconnected again straight away — HomeKin keeps only the photo. It only
+            works on your own profile: Facebook will not hand over anyone else&apos;s picture.
+          </p>
         </Step>
 
         <Step n={2} title="Fill in the details">

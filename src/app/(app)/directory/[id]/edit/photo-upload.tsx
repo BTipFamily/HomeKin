@@ -12,13 +12,45 @@ interface ProfilePhotoUploadProps {
   memberId: string
   currentPhotoUrl: string | null
   memberName: string
+  /**
+   * Offer "Use my Facebook photo". Only ever true on your own profile:
+   * Facebook gives a picture only to the person signing in, so a committee
+   * member editing a relative could only ever fetch their own face.
+   */
+  offerFacebook?: boolean
 }
 
-export function ProfilePhotoUpload({ memberId, currentPhotoUrl, memberName }: ProfilePhotoUploadProps) {
+export function ProfilePhotoUpload({
+  memberId,
+  currentPhotoUrl,
+  memberName,
+  offerFacebook = false,
+}: ProfilePhotoUploadProps) {
   const [photoUrl, setPhotoUrl] = useState(currentPhotoUrl)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const [linking, setLinking] = useState(false)
+
+  // Signs in with Facebook as a second identity on this account; the auth
+  // callback copies the picture, unlinks Facebook again and comes back here.
+  async function connectFacebookPhoto() {
+    setLinking(true)
+    setError('')
+    const supabase = createClient()
+    const next = `/directory/${memberId}/edit`
+    const { error: linkError } = await supabase.auth.linkIdentity({
+      provider: 'facebook',
+      options: {
+        redirectTo: `${window.location.origin}/api/auth/callback?next=${encodeURIComponent(next)}&fb_photo=1`,
+      },
+    })
+    // On success the browser is already on its way to Facebook.
+    if (linkError) {
+      setError(`Could not reach Facebook: ${linkError.message}`)
+      setLinking(false)
+    }
+  }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -91,6 +123,19 @@ export function ProfilePhotoUpload({ memberId, currentPhotoUrl, memberName }: Pr
           <Camera className="mr-1.5 h-4 w-4" />
           {uploading ? 'Uploading...' : 'Change Photo'}
         </Button>
+        {offerFacebook && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="ml-2"
+            onClick={connectFacebookPhoto}
+            disabled={uploading || linking}
+          >
+            {linking && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            Use my Facebook photo
+          </Button>
+        )}
         <p className="mt-1 text-xs text-muted-foreground">JPG, PNG, GIF up to 5MB</p>
         {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
         <input

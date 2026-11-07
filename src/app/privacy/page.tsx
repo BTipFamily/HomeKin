@@ -120,6 +120,24 @@ export default function PrivacyPage() {
         and never stored by it — HomeKin records only that a payment of a given amount succeeded.
       </p>
 
+      {/* Linked from the Meta app's "data deletion instructions URL" as
+          /privacy#facebook — keep the id. */}
+      <section id="facebook" className="scroll-mt-20 space-y-3">
+        <LegalHeading>Using your Facebook photo</LegalHeading>
+        <p>
+          If you choose <strong>Use my Facebook photo</strong> on your own profile, you sign in
+          with Facebook once and HomeKin receives your public profile picture. A copy is stored as
+          your profile photo. HomeKin keeps no Facebook login, token or other Facebook data:
+          Facebook is disconnected from your account as soon as the photo is copied. Nobody can do
+          this on your behalf.
+        </p>
+        <p>
+          To remove the photo, upload a different one or delete your account. You can also remove
+          HomeKin from Facebook&rsquo;s <em>Apps and Websites</em> settings; there is nothing
+          further for HomeKin to delete when you do.
+        </p>
+      </section>
+
       <LegalHeading>Services the data passes through</LegalHeading>
       <ul className="list-disc space-y-1.5 pl-5">
         {SUBPROCESSORS.map((s) => (
