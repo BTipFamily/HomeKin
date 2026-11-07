@@ -14,7 +14,7 @@ import { Search, Plus, Cake, FileSpreadsheet } from 'lucide-react'
 import type { Member, Role } from '@/types/database'
 
 interface DirectoryPageProps {
-  searchParams: Promise<{ q?: string; branch?: string }>
+  searchParams: Promise<{ q?: string; branch?: string; photo?: string }>
 }
 
 export default async function DirectoryPage({ searchParams }: DirectoryPageProps) {
@@ -33,6 +33,12 @@ export default async function DirectoryPage({ searchParams }: DirectoryPageProps
   const params = await searchParams
   const query = params.q || ''
   const branchFilter = params.branch || ''
+  const canAdmin = currentMember?.role === 'admin'
+  const canManage = ['committee', 'admin'].includes(currentMember?.role ?? '')
+  // Committee only: the people still without a photo, so whoever is filling
+  // the gaps can work down a list. Ignored for members — nothing about who has
+  // a photo is secret, but it is a to-do list, not something to browse by.
+  const missingPhoto = canManage && params.photo === 'missing'
 
   // Build query
   let membersQuery = supabase.from('members').select('*').order('name')
@@ -41,6 +47,9 @@ export default async function DirectoryPage({ searchParams }: DirectoryPageProps
   }
   if (branchFilter) {
     membersQuery = membersQuery.eq('family_branch', branchFilter)
+  }
+  if (missingPhoto) {
+    membersQuery = membersQuery.is('photo_url', null)
   }
 
   const { data: members } = await membersQuery
@@ -58,8 +67,15 @@ export default async function DirectoryPage({ searchParams }: DirectoryPageProps
 
   const uniqueBranches = [...new Set(branches?.map((b) => b.family_branch).filter(Boolean))]
 
-  const canAdmin = currentMember?.role === 'admin'
-  const canManage = ['committee', 'admin'].includes(currentMember?.role ?? '')
+  // The size of the job, shown on the toggle whatever else is filtered.
+  let missingPhotoCount: number | null = null
+  if (canManage) {
+    const { count } = await supabase
+      .from('members')
+      .select('id', { count: 'exact', head: true })
+      .is('photo_url', null)
+    missingPhotoCount = count ?? 0
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -108,10 +124,22 @@ export default async function DirectoryPage({ searchParams }: DirectoryPageProps
             ))}
           </select>
         )}
+        {canManage && missingPhotoCount !== null && missingPhotoCount > 0 && (
+          <label className="flex h-10 cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 text-sm">
+            <input
+              type="checkbox"
+              name="photo"
+              value="missing"
+              defaultChecked={missingPhoto}
+              className="h-4 w-4 accent-primary"
+            />
+            Missing photo ({missingPhotoCount})
+          </label>
+        )}
         <Button type="submit" variant="outline">
           Filter
         </Button>
-        {(query || branchFilter) && (
+        {(query || branchFilter || missingPhoto) && (
           <Button variant="ghost" asChild>
             <Link href="/directory">Clear</Link>
           </Button>
@@ -121,7 +149,7 @@ export default async function DirectoryPage({ searchParams }: DirectoryPageProps
       {/* Member grid */}
       {(!members || members.length === 0) ? (
         <div className="py-16 text-center text-muted-foreground">
-          <p>No members found.</p>
+          <p>{missingPhoto ? 'Everyone here has a photo.' : 'No members found.'}</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">

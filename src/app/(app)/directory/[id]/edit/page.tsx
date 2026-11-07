@@ -17,10 +17,13 @@ import { getInitials } from '@/lib/utils'
 import { MIN_BIRTH_YEAR } from '@/lib/birthday'
 import type { Relationship } from '@/types/database'
 import { ProfilePhotoUpload } from './photo-upload'
+import { facebookPhotoEnabled } from '@/lib/feature-flags'
 import { RelationshipPicker } from './relationship-picker'
 
 interface EditProfilePageProps {
   params: Promise<{ id: string }>
+  /** Set by the auth callback after "Use my Facebook photo". */
+  searchParams: Promise<{ photo?: string }>
 }
 
 const VOLUNTEER_AREAS = [
@@ -35,7 +38,7 @@ const VOLUNTEER_AREAS = [
   'Transportation',
 ]
 
-export default async function EditProfilePage({ params }: EditProfilePageProps) {
+export default async function EditProfilePage({ params, searchParams }: EditProfilePageProps) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -43,6 +46,7 @@ export default async function EditProfilePage({ params }: EditProfilePageProps) 
   if (!user) redirect('/login')
 
   const { id } = await params
+  const { photo: photoResult } = await searchParams
 
   const { data: currentMember } = await supabase
     .from('members')
@@ -129,11 +133,30 @@ export default async function EditProfilePage({ params }: EditProfilePageProps) 
           <CardDescription>Update your information visible to family members.</CardDescription>
         </CardHeader>
         <CardContent>
+          {photoResult === 'facebook-ok' && (
+            <div
+              aria-live="polite"
+              className="mb-4 rounded-md border border-success-border bg-success-surface p-3 text-sm text-success-foreground"
+            >
+              Your Facebook photo is now your profile photo — you can change it any time.
+            </div>
+          )}
+          {photoResult === 'facebook-failed' && (
+            <div
+              role="alert"
+              className="mb-4 rounded-md border border-warning-border bg-warning-surface p-3 text-sm text-warning-foreground"
+            >
+              Facebook didn&apos;t give us a photo — it may be the default grey silhouette, or the
+              sign-in was cancelled. You can upload one instead.
+            </div>
+          )}
+
           {/* Photo upload */}
           <ProfilePhotoUpload
             memberId={id}
             currentPhotoUrl={member.photo_url}
             memberName={member.name}
+            offerFacebook={facebookPhotoEnabled() && currentMember?.id === member.id}
           />
 
           <Separator className="my-6" />

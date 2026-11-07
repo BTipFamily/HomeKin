@@ -47,6 +47,7 @@ in your Vercel project (**Production**, and **Preview** if you use it).
 | `CRON_SECRET` | for reminders | Bearer token Vercel Cron sends to `/api/cron/reminders` and `/api/cron/reconcile-payments`. Without it both routes refuse to run — and without the first, no deadline reminders go out |
 | `CONTACT_EMAIL` | before publishing | The address printed on `/privacy` and `/terms`, and the one people report problems to. Unset, both pages render a visible "not ready to publish" banner and an obvious placeholder address rather than something plausible-looking. Deliberately **not** `NEXT_PUBLIC_` — a public variable is inlined at build time, so setting it in the hosting dashboard would change nothing until the next build |
 | `NEXT_PUBLIC_MAPBOX_TOKEN` | for maps | Public token, URL-restricted to your domain |
+| `NEXT_PUBLIC_FACEBOOK_PHOTO_ENABLED` | no | `true` shows **Use my Facebook photo** on a member's own profile. Leave unset until the setup in [Facebook profile photos](#facebook-profile-photos) is done — without it the button leads to an error. Fixed at build time, so redeploy after changing it |
 | `MAPBOX_SECRET_TOKEN` | for maps | Secret token scoped to `geocoding`, for server-side address lookups |
 
 Vercel only applies environment variables to **new** deployments — after
@@ -206,6 +207,32 @@ unverifiable rather than guessed at.
 curl -H "Authorization: Bearer $CRON_SECRET" \
   http://localhost:3000/api/cron/reconcile-payments
 ```
+
+### Facebook profile photos
+
+Facebook does not let anyone fetch somebody else's profile picture, so HomeKin
+cannot fill the directory from it. What it can do is let each member copy
+**their own**: **Use my Facebook photo** on their own profile signs them in with
+Facebook, copies the picture into the `profile-photos` bucket (Facebook's own
+URLs expire within days), and unlinks Facebook again. Nothing but the image is
+kept: no token, no Facebook login. See `src/lib/facebook-photo.ts`.
+
+It stays hidden until all of this is done:
+
+1. **Meta** — at [developers.facebook.com](https://developers.facebook.com/), create
+   an app with the **Facebook Login** use case, asking for `public_profile` only.
+   Set the valid OAuth redirect URI to `https://<project-ref>.supabase.co/auth/v1/callback`,
+   the privacy policy URL to `https://<your-domain>/privacy`, and the data
+   deletion instructions URL to `https://<your-domain>/privacy#facebook`. Switch
+   the app to **Live** — in development mode only the app's own testers can sign in.
+2. **Supabase** — Authentication → Providers → Facebook: enable it with the app
+   ID and secret. Authentication → Settings: turn on **manual linking**, which
+   `linkIdentity` needs.
+3. **Vercel** — set `NEXT_PUBLIC_FACEBOOK_PHOTO_ENABLED=true` and redeploy.
+
+Then try it on your own profile before telling anyone: the photo should end up
+on a `supabase.co/storage/v1/object/public/profile-photos/…` URL, and
+Authentication → Users should show no Facebook identity left on your account.
 
 ---
 

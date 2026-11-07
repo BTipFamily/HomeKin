@@ -81,6 +81,24 @@ export default function Guide() {
         </p>
       </GuideNote>
 
+      <H2>Adding their photo</H2>
+      <P>
+        Committee members and admins can give anyone a photo, including relatives who will never
+        sign in. Open their profile, press <UI>Edit</UI>, then <UI>Change Photo</UI>.
+      </P>
+      <P>
+        To find who still needs one, tick <UI>Missing photo</UI> in the directory&apos;s filters
+        and work down the list. The number beside it is how many are left.
+      </P>
+      <GuideNote title="Why not just use their Facebook picture?">
+        <p>
+          Facebook only gives a profile picture to the person it belongs to, and only after they
+          sign in with Facebook themselves — nobody can fetch it for them. Pasting the link to a
+          Facebook image does not work either: those links stop working within days. Save the
+          photo to your phone or computer and upload it.
+        </p>
+      </GuideNote>
+
       <H2>What they cannot do yet</H2>
       <List>
         <li>Sign in — there is no account until they use an invite code.</li>

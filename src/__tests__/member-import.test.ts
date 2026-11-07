@@ -5,6 +5,7 @@ import {
   IMPORT_COLUMNS,
   MAX_IMPORT_ROWS,
   TEMPLATE_CSV,
+  isExpiringSocialImage,
   type ExistingMember,
 } from '@/lib/member-import'
 import { buildXlsxFromGrid } from './helpers/xlsx-fixture'
@@ -248,6 +249,37 @@ describe('photo_url', () => {
   test('rejects something that is not a URL at all', () => {
     const result = plan(csv({ name: 'A', email: 'a@x.com', photo_url: 'my photo.jpg' }))
     expect(result.errors.some((e) => e.column === 'photo_url')).toBe(true)
+  })
+  test('warns about, but still imports, a Facebook image link', () => {
+    // Signed CDN URLs that expire: the photo would show for days, then break.
+    const url = 'https://scontent-lga3-1.xx.fbcdn.net/v/t39.30808-1/123_n.jpg?oh=abc&oe=6F00'
+    const result = plan(csv({ name: 'A', email: 'a@x.com', photo_url: url }))
+    expect(result.errors).toEqual([])
+    expect(result.people[0].photoUrl).toBe(url)
+    expect(result.warnings).toHaveLength(1)
+    expect(result.warnings[0]).toMatchObject({ column: 'photo_url' })
+    expect(result.warnings[0].message).toMatch(/stop working/)
+  })
+
+  test('does not warn about an ordinary image host', () => {
+    const result = plan(
+      csv({ name: 'A', email: 'a@x.com', photo_url: 'https://example.com/a.jpg' })
+    )
+    expect(result.warnings).toEqual([])
+  })
+})
+
+describe('isExpiringSocialImage', () => {
+  test('matches the Facebook and Instagram CDNs and their subdomains', () => {
+    expect(isExpiringSocialImage('https://scontent.xx.fbcdn.net/a.jpg')).toBe(true)
+    expect(isExpiringSocialImage('https://platform-lookaside.fbsbx.com/x')).toBe(true)
+    expect(isExpiringSocialImage('https://scontent.cdninstagram.com/a.jpg')).toBe(true)
+  })
+
+  test('does not match a host that only contains the name', () => {
+    expect(isExpiringSocialImage('https://fbcdn.net.example.com/a.jpg')).toBe(false)
+    expect(isExpiringSocialImage('https://notfbcdn.net/a.jpg')).toBe(false)
+    expect(isExpiringSocialImage('not a url')).toBe(false)
   })
 })
 
