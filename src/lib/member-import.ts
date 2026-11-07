@@ -401,7 +401,17 @@ export function buildImportPlan(
     if (photoRaw) {
       const parsed = parseUrl(photoRaw)
       if ('error' in parsed) fail(`Photo URL ${parsed.error}`, 'photo_url')
-      else photoUrl = parsed.url
+      else {
+        photoUrl = parsed.url
+        if (isExpiringSocialImage(parsed.url)) {
+          warnings.push({
+            row: rowNum,
+            column: 'photo_url',
+            message:
+              'This is a Facebook or Instagram image link and will stop working within days — download the photo and upload it on their profile instead.',
+          })
+        }
+      }
     }
 
     // Only the keys the file set, so unspecified fields keep the DB default.
@@ -587,4 +597,23 @@ export function buildImportPlan(
       relationships: relationships.length,
     },
   }
+}
+
+/**
+ * Image links copied out of Facebook or Instagram.
+ *
+ * They are signed CDN URLs that expire — an imported profile pointing at one
+ * shows a photo for a few days and then a broken image. Imported anyway, with a
+ * warning, because the rest of the row is still worth having.
+ */
+const EXPIRING_IMAGE_HOSTS = ['fbcdn.net', 'fbsbx.com', 'cdninstagram.com']
+
+export function isExpiringSocialImage(url: string): boolean {
+  let host: string
+  try {
+    host = new URL(url).hostname.toLowerCase()
+  } catch {
+    return false
+  }
+  return EXPIRING_IMAGE_HOSTS.some((h) => host === h || host.endsWith('.' + h))
 }

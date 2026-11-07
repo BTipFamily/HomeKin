@@ -22,7 +22,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   const { data: member } = await supabase
     .from('members')
-    .select('id, name, role')
+    .select('id, name, role, photo_url')
     .eq('auth_user_id', user.id)
     .single()
   if (!member) redirect('/login')
@@ -66,6 +66,27 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           {memberCount} family members and counting.
         </p>
       </div>
+
+      {/* A face is how relatives who have not met in years find each other in
+          the directory and the chat, so a missing one is worth one prompt. */}
+      {!member.photo_url && (
+        <Card className="mb-8 border-primary/30 bg-primary/5">
+          <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <Camera className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+              <div>
+                <p className="font-medium">Add a photo so the family recognises you</p>
+                <p className="text-sm text-muted-foreground">
+                  It shows next to your name in the directory, the tree and the chat.
+                </p>
+              </div>
+            </div>
+            <Button asChild size="sm" className="shrink-0">
+              <Link href={`/directory/${member.id}/edit`}>Add a photo</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick stats */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
