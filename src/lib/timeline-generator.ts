@@ -1,4 +1,4 @@
-import { subDays, addDays, format } from 'date-fns'
+import { subDays, addDays, format, parseISO } from 'date-fns'
 import type { TimelineItemCategory } from '@/types/database'
 
 export type TimelineCondition = 'always' | 'multiDay' | 'lodging' | 'merchandise' | 'heritage'
@@ -132,7 +132,9 @@ export function generateTimeline(
   startDate: Date | string,
   options: TimelineOptions
 ): GeneratedTimelineItem[] {
-  const start = typeof startDate === 'string' ? new Date(startDate) : startDate
+  // parseISO reads 'YYYY-MM-DD' as local midnight. new Date() reads it as UTC,
+  // which lands on the previous day in timezones behind UTC.
+  const start = typeof startDate === 'string' ? parseISO(startDate) : startDate
 
   return TIMELINE_TEMPLATE.filter((item) => conditionMet(item.condition, options))
     .map((item) => {
