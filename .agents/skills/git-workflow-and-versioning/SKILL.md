@@ -1,6 +1,6 @@
 ---
 name: git-workflow-and-versioning
-description: Structures git workflow practices. Use when making any code change. Use when committing, branching, resolving conflicts, splitting uncommitted work in a messy working tree into clean atomic commits, opening or reviewing a pull request (PR), pushing to a remote, or when you need to organize work across multiple parallel streams. Use when cutting a release, choosing a semantic version bump, tagging, or writing a changelog.
+description: Structures git workflow practices. Use when making any code change, committing, branching, resolving conflicts, splitting messy work into atomic commits, opening or reviewing a PR, pushing, or organizing parallel work. Use when cutting a release, choosing a version bump, tagging, or writing a changelog.
 ---
 
 # Git Workflow and Versioning
@@ -216,17 +216,9 @@ Before every commit:
 # 1. Check what you're about to commit
 git diff --staged
 
-# 2. Ensure no secrets
-git diff --staged | grep -i "password\|secret\|api_key\|token"
-
-# 3. Run tests
-npm test
-
-# 4. Run linting
-npm run lint
-
-# 5. Run type checking
-npx tsc --noEmit
+# 2. Run the secrets scan, tests, lint, and typecheck
+# Exit 0 = clean, 1 = a check failed, 2 = possible secrets to review
+bash scripts/pre-commit-check.sh
 ```
 
 Automate this with git hooks:

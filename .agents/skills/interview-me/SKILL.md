@@ -1,6 +1,6 @@
 ---
 name: interview-me
-description: Extracts what the user actually wants instead of what they think they should want. Achieves this through one-question-at-a-time interview until ~95% confidence about the underlying intent. Use when an ask is underspecified ("build me X" without "for whom" or "why now"), when the user explicitly invokes ("interview me", "grill me", "are we sure?", "stress-test my thinking"), or when you catch yourself silently filling in ambiguous requirements before any plan, spec, or code exists.
+description: Finds what the user actually wants through a one-question-at-a-time interview until ~95% confident of intent. Use when a request is underspecified, on "interview me", "grill me", "are we sure?", or "stress-test my thinking", or when you catch yourself filling in ambiguous requirements before any plan, spec, or code exists.
 ---
 
 # Interview Me
